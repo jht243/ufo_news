@@ -1,5 +1,6 @@
 import enum
 from datetime import datetime, date
+from threading import Lock
 
 from sqlalchemy import (
     create_engine,
@@ -253,7 +254,17 @@ class ScrapeLog(Base):
 
 engine = create_engine(settings.database_url, echo=False)
 SessionLocal = sessionmaker(bind=engine)
+_init_lock = Lock()
+_db_initialized = False
 
 
-def init_db():
-    Base.metadata.create_all(engine)
+def init_db(*, force: bool = False):
+    """Create tables once per process, not once per request."""
+    global _db_initialized
+    if _db_initialized and not force:
+        return
+    with _init_lock:
+        if _db_initialized and not force:
+            return
+        Base.metadata.create_all(engine)
+        _db_initialized = True
