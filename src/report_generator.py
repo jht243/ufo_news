@@ -212,7 +212,193 @@ def _build_entries(ext_articles, assembly_news) -> list[dict]:
         })
 
     entries.sort(key=lambda e: e["published_date"], reverse=True)
+    entries = _deduplicate_entries(entries)
     return entries
+
+
+# Words that don't help disambiguate topics (Spanish + English).
+_TOPIC_STOPWORDS = frozenset({
+    # English
+    "the", "and", "for", "with", "from", "that", "this", "into", "over",
+    "have", "has", "are", "was", "were", "will", "new", "more", "than",
+    "but", "not", "may", "can", "now", "all", "how", "why", "when",
+    "what", "which", "who", "you", "your", "his", "her", "its", "their",
+    "venezuela", "venezuelan", "venezuela's", "law", "laws", "bill",
+    # Spanish
+    "para", "con", "por", "del", "los", "las", "una", "uno", "que",
+    "como", "esta", "este", "esto", "esos", "esas", "muy", "ser",
+    "venezolan", "venezolana", "venezolano", "venezolanas", "venezolanos",
+    "nacional", "nacionales", "asamblea", "diputado", "diputada",
+    "diputados", "diputadas", "presidente", "presidenta",
+    "comision", "comision", "permanente",
+})
+
+# Investor-relevant topic clusters. Any entry whose normalized text
+# contains one of these keywords is tagged with the topic. Entries that
+# share a topic AND fall within DEDUP_WINDOW_DAYS of each other are
+# collapsed to a single entry (the highest-relevance one). This is the
+# big hammer that catches "12 different MPs each made a statement about
+# the Mining Law this week" -> one entry.
+# Order matters: the first tag whose keyword appears in the entry text
+# wins. Put NARROW, SPECIFIC topics first; broad ones last. This prevents
+# e.g. "foreign_investment" body text from getting mis-tagged as
+# "amnesty_law" just because the article mentions amnesty in passing.
+_TOPIC_TAGS: list[tuple[str, tuple[str, ...]]] = [
+    # Specific named laws (highest priority)
+    ("mining_law", ("ley organica de minas", "ley de minas", "mining law", "ley organica minera", "ley minera")),
+    ("amnesty_law", ("ley de amnistia", "amnesty law")),
+    ("socioeconomic_law", ("ley de proteccion de derechos socioeconomicos", "derechos socioeconomicos", "socioeconomic law")),
+    ("admin_celeridad_law", ("ley para la celeridad", "ley para celeridad", "tramites administrativos law", "administrative streamlining law")),
+    ("hydrocarbons_law", ("ley de hidrocarburos", "hydrocarbons law")),
+    ("constitutional_court_minas", ("tsj declara constitucionalidad de la ley de minas", "constitutionality of the mining law", "constitutionality of the organic mining law")),
+    # Specific OFAC/sanctions actions
+    ("ofac_general_license", ("general license 5", "general license 6", "general license 7", "general license 8", "general license 9", "licencia general 5", "licencia general 6")),
+    ("ofac_sanctions_relief", ("levantamiento de las sanciones", "sanctions easing", "ease sanctions", "ease the sanctions", "lift sanctions", "us eases sanctions")),
+    ("ofac_designations", ("notice of ofac sanctions actions", "ofac sdn list update", "ofac sanctions actions")),
+    ("travel_advisory", ("travel advisory", "do not travel advisory", "reconsider travel", "advisory level")),
+    # Diplomatic ties (specific bilaterals)
+    ("eu_dialogue", ("grupo de amistad venezuela-ue", "venezuela-eu friendship group", "european parliament delegation")),
+    ("us_relations_specific", ("us senate resolution", "us state department releases", "us-venezuela bilateral")),
+    # Sector-broad (lowest priority — only catch if nothing more specific matched)
+    ("foreign_investment_general", ("inversion extranjera directa", "foreign direct investment")),
+    ("real_estate_reform", ("reformara leyes vinculadas al sector inmobiliario", "real estate sector reform", "leyes inmobiliarias")),
+]
+
+
+def _normalize(text: str) -> str:
+    """Strip accents + lowercase. 'Petróleo' -> 'petroleo'."""
+    import unicodedata
+    return (
+        unicodedata.normalize("NFKD", text or "")
+        .encode("ascii", "ignore")
+        .decode("ascii")
+        .lower()
+    )
+
+
+def _topic_signature(text: str) -> set[str]:
+    """Significant-word set for Jaccard similarity comparison."""
+    norm = _normalize(text)
+    tokens = re.findall(r"[a-zA-Z]+", norm)
+    return {t for t in tokens if len(t) > 3 and t not in _TOPIC_STOPWORDS}
+
+
+def _topic_tag(text: str) -> str | None:
+    """Return the first topic tag whose keyword appears in text, else None."""
+    norm = _normalize(text)
+    for tag, kws in _TOPIC_TAGS:
+        for kw in kws:
+            if kw in norm:
+                return tag
+    return None
+
+
+def _entry_text(entry: dict) -> str:
+    return " ".join(filter(None, [
+        entry.get("headline_short"),
+        entry.get("headline"),
+        entry.get("body_text") or "",
+    ]))
+
+
+DEDUP_WINDOW_DAYS = 7
+JACCARD_THRESHOLD = 0.35
+
+
+def _deduplicate_entries(entries: list[dict]) -> list[dict]:
+    """Collapse near-duplicate entries.
+
+    Two passes:
+      1. **Topic-window pass**: entries with the same topic tag within
+         DEDUP_WINDOW_DAYS collapse to the highest-relevance one. This
+         catches the "12 MPs separately commented on the Mining Law
+         this week" case.
+      2. **Jaccard fallback**: catches near-duplicates that didn't
+         match a topic tag, using shared significant-word ratio.
+
+    Within each merge, we keep the entry with the highest LLM
+    relevance score (tiebreak: newer date).
+    """
+    if not entries:
+        return entries
+
+    original_count = len(entries)
+
+    # --- Pass 1: topic + time-window clustering ---
+    survivors: list[dict] = []
+    by_tag: dict[str, list[dict]] = {}
+    for e in entries:
+        tag = _topic_tag(_entry_text(e))
+        if tag is None:
+            survivors.append(e)
+            continue
+        by_tag.setdefault(tag, []).append(e)
+
+    for tag, group in by_tag.items():
+        # Sort newest first, then iterate building "clusters" of entries
+        # within DEDUP_WINDOW_DAYS of each other.
+        group.sort(key=lambda e: e["published_date"], reverse=True)
+        clusters: list[list[dict]] = []
+        for e in group:
+            placed = False
+            for cluster in clusters:
+                if any(
+                    abs((e["published_date"] - x["published_date"]).days) <= DEDUP_WINDOW_DAYS
+                    for x in cluster
+                ):
+                    cluster.append(e)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([e])
+
+        for cluster in clusters:
+            cluster.sort(
+                key=lambda e: (e["relevance"], e["published_date"]),
+                reverse=True,
+            )
+            keeper = cluster[0]
+            survivors.append(keeper)
+            if len(cluster) > 1:
+                logger.info(
+                    "Dedup [%s window=%dd]: kept '%s' (rel=%s, %s); dropped %d related",
+                    tag,
+                    DEDUP_WINDOW_DAYS,
+                    keeper["headline_short"][:60],
+                    keeper["relevance"],
+                    keeper["published_date"],
+                    len(cluster) - 1,
+                )
+
+    # --- Pass 2: Jaccard for everything that survived (no tag match) ---
+    survivors.sort(key=lambda e: e["published_date"], reverse=True)
+    enriched = [(e, _topic_signature(_entry_text(e))) for e in survivors]
+    final: list[tuple[dict, set[str]]] = []
+    for entry, sig in enriched:
+        if not sig:
+            final.append((entry, sig))
+            continue
+        merged = False
+        for i, (kept_entry, kept_sig) in enumerate(final):
+            if not kept_sig:
+                continue
+            jaccard = len(sig & kept_sig) / len(sig | kept_sig)
+            if jaccard < JACCARD_THRESHOLD:
+                continue
+            challenger = (entry["relevance"], entry["published_date"])
+            kept = (kept_entry["relevance"], kept_entry["published_date"])
+            if challenger > kept:
+                final[i] = (entry, sig)
+            merged = True
+            break
+        if not merged:
+            final.append((entry, sig))
+
+    deduped = [e for e, _ in final]
+    deduped.sort(key=lambda e: e["published_date"], reverse=True)
+    if len(deduped) < original_count:
+        logger.info("Dedup total: %d -> %d entries", original_count, len(deduped))
+    return deduped
 
 
 def _build_news_sidebar(entries: list[dict]) -> list[dict]:
@@ -294,11 +480,80 @@ def _build_ticker(db) -> list[dict]:
 
 
 def _build_calendar() -> list[dict]:
-    """Static calendar events — will be made dynamic in future."""
+    """Forward-looking investor calendar.
+
+    These are curated, editorially-selected events. They are intentionally
+    static (not auto-generated) because the calendar is a *forecast* of
+    what investors should watch, not a recap of what was scraped. Edit
+    this list when major upcoming events change.
+
+    Order: most time-sensitive first (today/imminent), then dated future
+    events, then ongoing/standing items, then long-horizon agenda.
+    """
     return [
-        {"date_label": "Ongoing", "title": "OFAC GLs 46A–50A", "subtitle": "Active", "note": "Oil & gas authorizations. Revocable.", "link": "https://ofac.treasury.gov/sanctions-programs-and-country-information/venezuela-related-sanctions", "css_class": "cal-positive"},
-        {"date_label": "2026 Agenda", "title": "Tax Harmonization Law", "subtitle": None, "note": "Fiscal terms for energy JVs & real estate. No date set.", "link": None, "css_class": ""},
-        {"date_label": "2026 Target", "title": "34 laws planned", "subtitle": None, "note": "Full legislative agenda.", "link": "https://www.ciudadvalencia.com.ve/sancionar-34-leyes-2026/", "css_class": ""},
+        {
+            "date_label": "Apr 15 — Today",
+            "title": "Bank Sanctions Eased",
+            "subtitle": "GLs issued",
+            "note": "OFAC banking GLs.",
+            "link": "https://www.upi.com/Top_News/US/2026/04/15/us-eases-sanctions-venezuelan-banks/4341744710443/",
+            "link_label": "UPI",
+            "css_class": "cal-positive",
+        },
+        {
+            "date_label": "Apr 15 — Imminent",
+            "title": "Socioeconomic Law — 2nd Discussion",
+            "subtitle": None,
+            "note": "Price controls & citizen oversight.",
+            "link": "https://www.asambleanacional.gob.ve/noticias/ley-de-proteccion-de-derechos-socioeconomicos-sera-sometida-a-segunda-discusion-en-los-proximos-dias",
+            "link_label": "Source",
+            "css_class": "cal-urgent",
+        },
+        {
+            "date_label": "Apr 19 – May 1",
+            "title": "Gran Peregrinación Nacional",
+            "subtitle": None,
+            "note": "Anti-sanctions mobilization. Watch for OFAC responses.",
+            "link": None,
+            "link_label": None,
+            "css_class": "cal-urgent",
+        },
+        {
+            "date_label": "Apr – May (TBD)",
+            "title": "Mining Law — Promulgation",
+            "subtitle": None,
+            "note": "Awaiting presidential signature.",
+            "link": None,
+            "link_label": None,
+            "css_class": "",
+        },
+        {
+            "date_label": "2026 Agenda",
+            "title": "Tax Harmonization Law",
+            "subtitle": None,
+            "note": "Fiscal terms for energy JVs & real estate. No date set.",
+            "link": None,
+            "link_label": None,
+            "css_class": "",
+        },
+        {
+            "date_label": "Ongoing",
+            "title": "OFAC GLs 46A–50A",
+            "subtitle": "Active",
+            "note": "Oil & gas authorizations. Revocable.",
+            "link": "https://ofac.treasury.gov/sanctions-programs-and-country-information/venezuela-related-sanctions",
+            "link_label": "OFAC",
+            "css_class": "cal-positive",
+        },
+        {
+            "date_label": "2026 Target",
+            "title": "34 laws planned",
+            "subtitle": None,
+            "note": "Full legislative agenda.",
+            "link": "https://www.ciudadvalencia.com.ve/sancionar-34-leyes-2026/",
+            "link_label": "Source",
+            "css_class": "",
+        },
     ]
 
 

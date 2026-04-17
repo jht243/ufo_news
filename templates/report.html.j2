@@ -292,7 +292,7 @@
         <div class="cal-event {{ event.css_class }}">
           <div class="cal-date">{{ event.date_label }}</div>
           <div class="cal-desc"><strong>{{ event.title }}</strong>{% if event.subtitle %} &mdash; {{ event.subtitle }}{% endif %}</div>
-          <div class="cal-note">{{ event.note }}{% if event.link %} <a href="{{ event.link }}" target="_blank" style="color:var(--sr-blue)">Source &rarr;</a>{% endif %}</div>
+          <div class="cal-note">{{ event.note }}{% if event.link %} <a href="{{ event.link }}" target="_blank" style="color:var(--sr-blue)">{{ event.link_label or 'Source' }} &rarr;</a>{% endif %}</div>
         </div>
         {% endfor %}
       </div>
