@@ -82,9 +82,12 @@
     .container { max-width: 760px; margin: 0 auto; padding: 0 24px; }
     .container-wide { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
 
-    .breadcrumbs { font-size: 13px; color: var(--sr-gray-text); margin: 24px 0 12px; }
+    /* Breadcrumbs row — turned into a flex container so the auto-injected
+       share button sits flush-right on the same line. */
+    .breadcrumbs { font-size: 13px; color: var(--sr-gray-text); margin: 24px 0 12px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
     .breadcrumbs a { color: var(--sr-gray-text); }
-    .breadcrumbs span { margin: 0 6px; }
+    .breadcrumbs span { margin: 0 0; }
+    .breadcrumbs .breadcrumb-share { margin-left: auto; }
 
     article header h1 { font-family: var(--font-serif); font-size: 38px; line-height: 1.2; color: var(--sr-blue-dark); margin: 12px 0; font-weight: 700; }
     article header .subtitle { font-family: var(--font-serif); font-style: italic; font-size: 20px; color: var(--sr-gray-text); margin-bottom: 18px; }
@@ -129,6 +132,20 @@
 
     .site-footer { background: var(--sr-blue-dark); color: rgba(255,255,255,0.7); padding: 24px; text-align: center; font-size: 13px; }
     .site-footer a { color: rgba(255,255,255,0.85); text-decoration: none; margin: 0 8px; }
+
+    /* Share button — same look & behavior as on the homepage report cards.
+       Used across every sub-page (blog post, landing, tools, calendar…). */
+    .share-btn { background: transparent; border: 1px solid var(--sr-gray-light); border-radius: 999px; padding: 6px 14px; font-family: var(--font-sans); font-size: 12px; font-weight: 600; color: var(--sr-gray-text); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; line-height: 1; transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease; text-decoration: none; }
+    .share-btn:hover { color: var(--sr-blue); border-color: var(--sr-blue); }
+    .share-btn:active { transform: scale(0.97); }
+    .share-btn.copied { color: #166534; border-color: #166534; background: #f0fdf4; }
+    .share-btn svg { display: block; }
+    /* Page-level share row sits flush-right above the headline, matching
+       the visual weight of the "By Caracas Research" meta line. */
+    .page-share-row { display: flex; justify-content: flex-end; margin: 4px 0 -4px; }
+    /* Toast — bottom-center floating pill, ~1.6s. */
+    .share-toast { position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(20px); background: var(--sr-blue-dark); color: var(--white); padding: 10px 20px; border-radius: 999px; font-family: var(--font-sans); font-size: 13px; font-weight: 600; letter-spacing: 0.3px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); opacity: 0; pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; z-index: 9999; }
+    .share-toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
   {% block head_extra %}{% endblock %}
 </head>
@@ -149,6 +166,22 @@
   </div>
 </nav>
 
+{# Reusable share button macro. Pages call {{ share_button(url, title) }}
+   anywhere they want to render a Share affordance. The global script
+   below wires up navigator.share / clipboard fallback. #}
+{% macro share_button(url, title, label='Share') -%}
+<button type="button" class="share-btn"
+        data-share-url="{{ url }}"
+        data-share-title="{{ title|e }}"
+        aria-label="Share this page">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+    <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+  </svg>
+  <span class="share-btn-label">{{ label }}</span>
+</button>
+{%- endmacro %}
+
 {% block content %}{% endblock %}
 
 <div class="footer-cta">
@@ -161,5 +194,102 @@
   &copy; {{ current_year|default(2026) }} Caracas Research ·
   <a href="/sitemap.xml">Sitemap</a>
 </footer>
+
+<script>
+// Auto-inject a Share button into every breadcrumbs row. This means tools,
+// calendar, sanctions tracker, blog index, etc. all get a consistent share
+// affordance without per-template edits. Pages can still place additional
+// .share-btn elements anywhere they want.
+(function autoInjectBreadcrumbShare() {
+  var canonicalEl = document.querySelector('link[rel="canonical"]');
+  var canonical = (canonicalEl && canonicalEl.getAttribute('href')) || window.location.href;
+  var title = document.title || 'Caracas Research';
+  document.querySelectorAll('nav.breadcrumbs').forEach(function(crumbs) {
+    if (crumbs.querySelector('.share-btn')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'share-btn breadcrumb-share';
+    btn.setAttribute('data-share-url', canonical);
+    btn.setAttribute('data-share-title', title);
+    btn.setAttribute('aria-label', 'Share this page');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>' +
+      '<line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>' +
+      '</svg><span class="share-btn-label">Share</span>';
+    crumbs.appendChild(btn);
+  });
+})();
+
+// Share button handler — used by any .share-btn on this page (page header,
+// inline buttons, breadcrumbs auto-injected, etc.). On mobile / browsers
+// exposing navigator.share we open the native share sheet; on desktop we
+// copy the canonical URL and show a "Link copied" toast. Falls back to
+// window.location.href when no data-share-url is provided.
+(function initShareButtons() {
+  var toastEl = null;
+  function showToast(msg) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.className = 'share-toast';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = msg;
+    requestAnimationFrame(function() { toastEl.classList.add('is-visible'); });
+    clearTimeout(toastEl._hideTimer);
+    toastEl._hideTimer = setTimeout(function() {
+      toastEl.classList.remove('is-visible');
+    }, 1600);
+  }
+  function flashCopied(btn) {
+    var label = btn.querySelector('.share-btn-label');
+    var prev = label ? label.textContent : null;
+    btn.classList.add('copied');
+    if (label) label.textContent = 'Copied';
+    setTimeout(function() {
+      btn.classList.remove('copied');
+      if (label && prev !== null) label.textContent = prev;
+    }, 1600);
+  }
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function(resolve, reject) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        resolve();
+      } catch (err) { reject(err); }
+    });
+  }
+  document.querySelectorAll('.share-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var url = btn.getAttribute('data-share-url') || window.location.href;
+      var title = btn.getAttribute('data-share-title') || document.title;
+      if (navigator.share) {
+        navigator.share({ title: title, url: url }).catch(function() {
+          copyToClipboard(url).then(function() {
+            flashCopied(btn);
+            showToast('Link copied');
+          }).catch(function() {});
+        });
+        return;
+      }
+      copyToClipboard(url).then(function() {
+        flashCopied(btn);
+        showToast('Link copied');
+      }).catch(function() {
+        showToast('Could not copy link');
+      });
+    });
+  });
+})();
+</script>
 </body>
 </html>

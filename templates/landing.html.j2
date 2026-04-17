@@ -1,4 +1,5 @@
 {% extends "_base.html.j2" %}
+{% from "_base.html.j2" import share_button %}
 
 {% block content %}
 <article class="container">
@@ -24,6 +25,7 @@
       <span><strong>Last updated</strong> {{ page.last_generated_at.strftime('%B %d, %Y') }}</span>
       {% if page.word_count %}<span>{{ page.word_count }}-word guide</span>{% endif %}
       <span><strong>Editor</strong> Caracas Research</span>
+      <span style="margin-left:auto;">{{ share_button('https://caracasresearch.com' ~ page.canonical_path, page.title) }}</span>
     </div>
   </header>
 
