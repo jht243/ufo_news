@@ -35,7 +35,7 @@
 
   <header style="margin: 16px 0 24px;">
     <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
-      Live tracker · Updated daily from US Treasury
+      Live tracker · Refreshed twice daily from US Treasury
     </div>
     <h1 style="font-family:var(--font-serif); font-size:36px; color:var(--sr-blue-dark); margin:8px 0 12px;">
       OFAC Venezuela Sanctions Tracker
@@ -43,8 +43,26 @@
     <p style="font-family:var(--font-serif); font-style:italic; color:var(--sr-gray-text); font-size:18px; max-width:760px;">
       Every Specially Designated National (SDN), vessel, and aircraft on the
       US Treasury OFAC list under Venezuela-related programs. Pulled directly
-      from the OFAC SDN consolidated list and refreshed twice daily.
+      from the OFAC SDN consolidated list and refreshed twice daily at 10:00 AM
+      and 5:00 PM Medellín time.
     </p>
+    {% if last_refreshed_local %}
+    <div style="display:flex; flex-wrap:wrap; gap:18px; align-items:center; margin-top:14px; padding:10px 14px; background: var(--sr-gray-bg); border-left: 3px solid #2e7d32; font-size:13px; color: var(--sr-gray-text);">
+      <span>
+        <strong style="color: var(--sr-dark-text);">Last refreshed:</strong>
+        {{ last_refreshed_local }}
+        {% if last_refreshed_relative %}
+        <span style="color: #2e7d32; font-weight:600;">· {{ last_refreshed_relative }}</span>
+        {% endif %}
+      </span>
+      {% if next_refresh_local %}
+      <span>
+        <strong style="color: var(--sr-dark-text);">Next refresh:</strong>
+        {{ next_refresh_local }}
+      </span>
+      {% endif %}
+    </div>
+    {% endif %}
   </header>
 
   <div class="stats-row">

@@ -1092,9 +1092,9 @@ def sources_page():
 def sanctions_tracker():
     """OFAC SDN tracker — searchable / filterable table of all designations."""
     try:
-        from src.models import ExternalArticleEntry, SessionLocal, SourceType, init_db
+        from src.models import ExternalArticleEntry, ScrapeLog, SessionLocal, SourceType, init_db
         from src.page_renderer import _env, _base_url, _iso, settings as _s
-        from datetime import date as _date, datetime as _dt
+        from datetime import date as _date, datetime as _dt, timedelta as _td, timezone as _tz
         import json as _json
 
         init_db()
@@ -1106,6 +1106,58 @@ def sanctions_tracker():
                 .order_by(ExternalArticleEntry.published_date.desc())
                 .all()
             )
+
+            # Pull the most recent successful OFAC SDN scrape so we can show
+            # the user a verifiable "last refreshed" timestamp instead of just
+            # claiming "updated daily" with no proof.
+            last_scrape_row = (
+                db.query(ScrapeLog)
+                .filter(
+                    ScrapeLog.source == SourceType.OFAC_SDN,
+                    ScrapeLog.success.is_(True),
+                    ScrapeLog.entries_found > 0,
+                )
+                .order_by(ScrapeLog.created_at.desc())
+                .first()
+            )
+
+            # Render cron schedule: "0 15,22 * * *" UTC → 10:00 and 17:00 in
+            # America/Bogota (UTC-5, same as Medellín). Compute the next slot
+            # so the page tells the reader exactly when the data refreshes next.
+            now_utc = _dt.now(_tz.utc)
+            cron_hours_utc = (15, 22)
+            next_run_utc = None
+            for hh in cron_hours_utc:
+                candidate = now_utc.replace(hour=hh, minute=0, second=0, microsecond=0)
+                if candidate > now_utc:
+                    next_run_utc = candidate
+                    break
+            if next_run_utc is None:
+                next_run_utc = (now_utc + _td(days=1)).replace(
+                    hour=cron_hours_utc[0], minute=0, second=0, microsecond=0
+                )
+
+            medellin = _tz(_td(hours=-5))  # America/Bogota / Medellín, no DST
+            last_refreshed_local = None
+            last_refreshed_relative = None
+            if last_scrape_row and last_scrape_row.created_at is not None:
+                # ScrapeLog.created_at is stored naive (UTC); pin it to UTC.
+                last_utc = last_scrape_row.created_at.replace(tzinfo=_tz.utc)
+                last_local = last_utc.astimezone(medellin)
+                last_refreshed_local = last_local.strftime("%b %d, %Y · %-I:%M %p") + " (Medellín)"
+                delta = now_utc - last_utc
+                hours = int(delta.total_seconds() // 3600)
+                minutes = int((delta.total_seconds() % 3600) // 60)
+                if hours >= 24:
+                    last_refreshed_relative = f"{hours // 24}d ago"
+                elif hours >= 1:
+                    last_refreshed_relative = f"{hours}h ago"
+                else:
+                    last_refreshed_relative = f"{max(minutes, 1)}m ago"
+
+            next_refresh_local = next_run_utc.astimezone(medellin).strftime(
+                "%b %d · %-I:%M %p"
+            ) + " (Medellín)"
 
             sdn_entries = []
             stats = {
@@ -1188,6 +1240,9 @@ def sanctions_tracker():
                 seo=seo,
                 jsonld=jsonld,
                 current_year=_date.today().year,
+                last_refreshed_local=last_refreshed_local,
+                last_refreshed_relative=last_refreshed_relative,
+                next_refresh_local=next_refresh_local,
             )
             return Response(html, mimetype="text/html")
         finally:
