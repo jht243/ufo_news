@@ -936,7 +936,7 @@ def _build_jsonld(entries: list[dict], seo: dict, generated_at: datetime) -> str
         "url": f"{base}/",
         "logo": {
             "@type": "ImageObject",
-            "url": f"{base}/static/og-image.png?v=2",
+            "url": f"{base}/static/og-image.png?v=3",
             "width": 1200,
             "height": 630,
         },
@@ -1024,7 +1024,7 @@ def _build_jsonld(entries: list[dict], seo: dict, generated_at: datetime) -> str
             },
             "headline": article_headline[:110],
             "description": (article_body[:300] + ("…" if len(article_body) > 300 else "")),
-            "image": [seo.get("og_image", f"{base}/static/og-image.png?v=2")],
+            "image": [seo.get("og_image", f"{base}/static/og-image.png?v=3")],
             "datePublished": published,
             "dateModified": modified,
             "author": {
@@ -1106,7 +1106,7 @@ def _build_seo(entries: list[dict], generated_at: datetime) -> dict:
         keywords.append(f"Venezuela {sector.lower()} sector")
 
     canonical = f"{base}/"
-    og_image = f"{base}/static/og-image.png?v=2"
+    og_image = f"{base}/static/og-image.png?v=3"
 
     return {
         "title": title,
