@@ -62,11 +62,15 @@ class OFACSdnScraper(BaseScraper):
                 if not entries:
                     continue
                 for entry in entries:
+                    uid = entry.get("uid", "")
                     articles.append(
                         ScrapedArticle(
                             headline=f"OFAC SDN {change_type}: {entry['name']}",
                             published_date=target_date,
-                            source_url="https://ofac.treasury.gov/specially-designated-nationals-and-blocked-persons-list-sdn-human-readable-lists",
+                            source_url=(
+                                "https://ofac.treasury.gov/specially-designated-nationals-and-blocked-persons-list-sdn-human-readable-lists"
+                                f"#sdn-{uid}-{change_type}"
+                            ),
                             body_text=(
                                 f"Entity: {entry['name']}\n"
                                 f"Type: {entry['type']}\n"

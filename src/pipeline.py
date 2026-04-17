@@ -200,13 +200,15 @@ def _persist_gazettes(gazettes: list[ScrapedGazette]) -> list[tuple[int, Optiona
                 pdf_download_url=g.pdf_download_url,
                 status=GazetteStatus.SCRAPED,
             )
-            db.add(entry)
+            nested = db.begin_nested()
             try:
+                db.add(entry)
                 db.flush()
+                nested.commit()
                 new_entries.append((entry.id, g.pdf_download_url))
                 logger.info("Persisted gazette: %s (%s)", g.gazette_number, g.source)
             except IntegrityError:
-                db.rollback()
+                nested.rollback()
                 logger.debug("Duplicate gazette skipped: %s", g.source_url)
 
         db.commit()
@@ -231,13 +233,15 @@ def _persist_news(news_items: list[ScrapedNews]) -> list[int]:
                 commission=n.commission,
                 status=GazetteStatus.SCRAPED,
             )
-            db.add(entry)
+            nested = db.begin_nested()
             try:
+                db.add(entry)
                 db.flush()
+                nested.commit()
                 new_ids.append(entry.id)
                 logger.info("Persisted news: %s", n.headline[:80])
             except IntegrityError:
-                db.rollback()
+                nested.rollback()
                 logger.debug("Duplicate news skipped: %s", n.source_url)
 
         db.commit()
@@ -278,13 +282,15 @@ def _persist_articles(articles: list[ScrapedArticle]) -> list[int]:
                 extra_metadata=a.extra_metadata,
                 status=GazetteStatus.SCRAPED,
             )
-            db.add(entry)
+            nested = db.begin_nested()
             try:
+                db.add(entry)
                 db.flush()
+                nested.commit()
                 new_ids.append(entry.id)
                 logger.info("Persisted article: %s [%s]", a.headline[:80], a.source_name)
             except IntegrityError:
-                db.rollback()
+                nested.rollback()
                 logger.debug("Duplicate article skipped: %s", a.source_url)
 
         db.commit()
