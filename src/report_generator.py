@@ -1021,6 +1021,7 @@ def _build_jsonld(entries: list[dict], seo: dict, generated_at: datetime) -> str
             "mainEntityOfPage": {
                 "@type": "WebPage",
                 "@id": article_url,
+                "name": article_headline[:110],
             },
             "headline": article_headline[:110],
             "description": (article_body[:300] + ("…" if len(article_body) > 300 else "")),

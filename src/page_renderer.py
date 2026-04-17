@@ -44,7 +44,12 @@ def _iso(d: date | datetime | None) -> str:
 
 
 def render_blog_post(post, *, related: list | None = None) -> str:
-    """Render a single BlogPost row to HTML with full BlogPosting JSON-LD."""
+    """Render a single BlogPost row to HTML with full NewsArticle JSON-LD.
+
+    Uses NewsArticle (not BlogPosting) so briefings are eligible for the
+    Google News Top Stories carousel. NewsArticle is a strict subtype of
+    Article that Google specifically scans for time-sensitive news content.
+    """
     base = _base_url()
     canonical = f"{base}/briefing/{post.slug}"
     og_image = f"{base}/static/og-image.png?v=3"
@@ -78,10 +83,11 @@ def render_blog_post(post, *, related: list | None = None) -> str:
         ],
     }
 
-    blog_posting = {
-        "@type": "BlogPosting",
+    news_article = {
+        "@type": "NewsArticle",
         "@id": f"{canonical}#article",
-        "mainEntityOfPage": {"@type": "WebPage", "@id": canonical},
+        "url": canonical,
+        "mainEntityOfPage": {"@type": "WebPage", "@id": canonical, "name": post.title},
         "headline": (post.title or "")[:110],
         "description": (post.summary or "")[:300],
         "image": [og_image],
@@ -101,10 +107,10 @@ def render_blog_post(post, *, related: list | None = None) -> str:
         "isAccessibleForFree": True,
     }
     if post.canonical_source_url:
-        blog_posting["citation"] = post.canonical_source_url
+        news_article["citation"] = post.canonical_source_url
 
     jsonld = json.dumps(
-        {"@context": "https://schema.org", "@graph": [breadcrumbs, blog_posting]},
+        {"@context": "https://schema.org", "@graph": [breadcrumbs, news_article]},
         ensure_ascii=False,
     )
 
