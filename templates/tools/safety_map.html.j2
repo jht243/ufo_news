@@ -1,0 +1,134 @@
+{% extends "_base.html.j2" %}
+
+{% block head_extra %}
+<style>
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 16px 0 24px; font-size: 13px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+  .dot.s1 { background: #c0392b; }
+  .dot.s2 { background: #e67e22; }
+  .dot.s3 { background: #f1c40f; }
+  .dot.s4 { background: #27ae60; }
+  .dot.s5 { background: #1e8449; }
+  .filter { display:flex; gap:8px; margin: 12px 0 20px; }
+  .filter input, .filter select { padding: 10px 14px; border: 1px solid var(--sr-gray-light); border-radius:3px; font-size: 14px; }
+  .filter input { flex:1; }
+  .nbh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
+  .nbh-card { background: var(--white); border: 1px solid var(--sr-gray-light); border-left: 4px solid var(--sr-gray-light); padding: 16px 18px; border-radius: 3px; }
+  .nbh-card.s1 { border-left-color: #c0392b; }
+  .nbh-card.s2 { border-left-color: #e67e22; }
+  .nbh-card.s3 { border-left-color: #f1c40f; }
+  .nbh-card.s4 { border-left-color: #27ae60; }
+  .nbh-card.s5 { border-left-color: #1e8449; }
+  .nbh-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .nbh-card h3 { font-family: var(--font-serif); color: var(--sr-blue-dark); font-size: 18px; margin: 0; }
+  .nbh-card .muni { font-size: 12px; color: var(--sr-gray-text); text-transform: uppercase; letter-spacing: 0.6px; }
+  .score-pill { padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 12px; color: var(--white); }
+  .score-pill.s1 { background: #c0392b; }
+  .score-pill.s2 { background: #e67e22; }
+  .score-pill.s3 { background: #f1c40f; color: #4a3300; }
+  .score-pill.s4 { background: #27ae60; }
+  .score-pill.s5 { background: #1e8449; }
+  .nbh-card .cat { font-size: 12px; color: var(--sr-gray-text); margin: 6px 0 10px; }
+  .nbh-card .summary { font-size: 13px; color: var(--sr-dark-text); margin-bottom: 8px; }
+  .nbh-card .meta { font-size: 12px; margin-top: 8px; }
+  .nbh-card .meta strong { color: var(--sr-blue-dark); }
+  .nbh-card .avoid { font-size: 12px; color: #7a1f1a; background: #fdecea; padding: 6px 10px; border-radius: 3px; margin-top: 6px; }
+  .disclaimer { background: #fff3e0; border-left: 4px solid #f5b041; padding: 14px 18px; font-size: 13px; color: #7c4a03; margin: 24px 0; border-radius: 3px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="container-wide">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <a href="/invest-in-venezuela">Invest in Venezuela</a><span>/</span>
+    <span>Caracas Neighborhood Safety Map</span>
+  </nav>
+
+  <header style="margin: 16px 0 16px;">
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Travel tool · Curated, expert-reviewed
+    </div>
+    <h1 style="font-family:var(--font-serif); font-size:32px; color:var(--sr-blue-dark); margin:8px 0 10px;">
+      Caracas Safety Score by Neighborhood
+    </h1>
+    <p style="font-family:var(--font-serif); font-style:italic; color:var(--sr-gray-text); font-size:17px;">
+      A first-pass safety reference for foreign investors and business
+      travellers planning a trip to Caracas. Each neighborhood has a
+      1–5 safety score, a recommended business use, and the specific
+      risks to avoid.
+    </p>
+  </header>
+
+  <div class="legend">
+    <div class="legend-item"><span class="dot s5"></span> 5 — Most stable for foreign visitors</div>
+    <div class="legend-item"><span class="dot s4"></span> 4 — Generally functional with caution</div>
+    <div class="legend-item"><span class="dot s3"></span> 3 — Mixed; daylight only with care</div>
+    <div class="legend-item"><span class="dot s2"></span> 2 — Limited; purpose-driven visits only</div>
+    <div class="legend-item"><span class="dot s1"></span> 1 — Do not enter</div>
+  </div>
+
+  <div class="filter">
+    <input type="text" id="nbh-q" placeholder="Search neighborhood, municipality, category…">
+    <select id="nbh-min">
+      <option value="0">Show all scores</option>
+      <option value="3">Score ≥ 3 only</option>
+      <option value="4">Score ≥ 4 only (business-suitable)</option>
+    </select>
+  </div>
+
+  <div class="nbh-grid" id="nbh-grid">
+    {% for n in neighborhoods %}
+    <article class="nbh-card s{{ n.safety_score }}" data-text="{{ (n.name + ' ' + n.municipality + ' ' + n.category)|lower }}" data-score="{{ n.safety_score }}">
+      <div class="nbh-head">
+        <div>
+          <h3>{{ n.name }}</h3>
+          <div class="muni">{{ n.municipality }}</div>
+        </div>
+        <span class="score-pill s{{ n.safety_score }}">{{ n.safety_score }}/5</span>
+      </div>
+      <div class="cat">{{ n.category }}</div>
+      <p class="summary">{{ n.summary }}</p>
+      <div class="meta"><strong>Business use:</strong> {{ n.business_use }}</div>
+      <div class="avoid"><strong>Avoid:</strong> {{ n.what_to_avoid }}</div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <div class="disclaimer">
+    <strong>Important:</strong> Scores reflect aggregated, expert-reviewed
+    context — not a real-time crime feed. Conditions in Caracas can change
+    quickly. Always cross-check with your home country's foreign-affairs
+    advisory, OSAC reporting, and a local security advisor before travel.
+    Nothing on this page is security advice.
+  </div>
+
+  <p style="font-size:12px; color:var(--sr-gray-text); margin: 24px 0;">
+    See related: <a href="/tools/venezuela-visa-requirements">Venezuela visa requirements</a> ·
+    <a href="/sectors/tourism">Venezuela tourism sector</a> ·
+    <a href="/invest-in-venezuela">how to invest in Venezuela</a>.
+  </p>
+
+  <script>
+    (function() {
+      var cards = document.querySelectorAll('#nbh-grid .nbh-card');
+      var q = document.getElementById('nbh-q');
+      var min = document.getElementById('nbh-min');
+      function apply() {
+        var qv = (q.value || '').toLowerCase().trim();
+        var minScore = parseInt(min.value || '0', 10);
+        cards.forEach(function(c) {
+          var matchQ = !qv || c.dataset.text.indexOf(qv) !== -1;
+          var matchS = parseInt(c.dataset.score, 10) >= minScore;
+          c.style.display = (matchQ && matchS) ? '' : 'none';
+        });
+      }
+      q.addEventListener('input', apply);
+      min.addEventListener('change', apply);
+    })();
+  </script>
+
+</section>
+{% endblock %}

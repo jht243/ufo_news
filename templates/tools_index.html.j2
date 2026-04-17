@@ -1,0 +1,36 @@
+{% extends "_base.html.j2" %}
+
+{% block content %}
+<section class="container">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <span>Tools</span>
+  </nav>
+
+  <header style="margin: 16px 0 24px;">
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Free tools · Built on our live data
+    </div>
+    <h1 style="font-family:var(--font-serif); font-size:36px; color:var(--sr-blue-dark); margin:8px 0 12px;">
+      Free Venezuela Investor Tools
+    </h1>
+    <p style="font-family:var(--font-serif); font-style:italic; color:var(--sr-gray-text); font-size:18px;">
+      A growing toolkit for anyone evaluating Venezuelan exposure: live OFAC
+      screening, the official BCV exchange rate, sector ROI modelling, visa
+      and travel context, and on-the-ground safety data for Caracas.
+    </p>
+  </header>
+
+  <div class="index-grid">
+    {% for t in tools %}
+    <article class="index-card">
+      <a class="title-link" href="{{ t.url }}">{{ t.name }}</a>
+      <div class="meta">{{ t.category }}</div>
+      <p class="summary">{{ t.summary }}</p>
+    </article>
+    {% endfor %}
+  </div>
+
+</section>
+{% endblock %}

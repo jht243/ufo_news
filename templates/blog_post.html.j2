@@ -1,0 +1,65 @@
+{% extends "_base.html.j2" %}
+
+{% block content %}
+<article class="container">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <a href="/briefing">Analysis</a><span>/</span>
+    <span>{{ post.title }}</span>
+  </nav>
+
+  <header>
+    {% if post.primary_sector %}
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      {{ post.primary_sector|replace('_',' ')|title }}
+    </div>
+    {% endif %}
+    <h1>{{ post.title }}</h1>
+    {% if post.subtitle %}<p class="subtitle">{{ post.subtitle }}</p>{% endif %}
+    <div class="meta">
+      <span><strong>Published</strong> {{ post.published_date.strftime('%B %d, %Y') }}</span>
+      {% if post.reading_minutes %}<span><strong>Read</strong> {{ post.reading_minutes }} min</span>{% endif %}
+      {% if post.word_count %}<span>{{ post.word_count }} words</span>{% endif %}
+      <span><strong>By</strong> Venezuelan Business Network</span>
+    </div>
+  </header>
+
+  {% if takeaways %}
+  <aside class="takeaways" aria-label="Key takeaways">
+    <h3>Key takeaways</h3>
+    <ul>
+      {% for t in takeaways %}<li>{{ t }}</li>{% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+
+  <div class="body">
+    {{ post.body_html | safe }}
+  </div>
+
+  {% if post.canonical_source_url %}
+  <div class="source-citation">
+    <strong>Primary source:</strong>
+    <a href="{{ post.canonical_source_url }}" rel="nofollow noopener" target="_blank">{{ post.canonical_source_url }}</a>
+    — referenced for fact-checking; this analysis is independent commentary by the
+    Venezuelan Business Network editorial team.
+  </div>
+  {% endif %}
+
+  {% if related %}
+  <section class="related" aria-label="Related analysis">
+    <h3>More on this sector</h3>
+    <ul>
+      {% for r in related %}
+      <li>
+        <a href="/briefing/{{ r.slug }}">{{ r.title }}</a>
+        <small>{{ r.published_date.strftime('%b %d, %Y') }}</small>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+</article>
+{% endblock %}

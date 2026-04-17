@@ -1,0 +1,38 @@
+{% extends "_base.html.j2" %}
+
+{% block content %}
+<section class="container">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <span>Explainers</span>
+  </nav>
+
+  <header style="margin: 16px 0 24px;">
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Evergreen guides
+    </div>
+    <h1 style="font-family:var(--font-serif); font-size:36px; color:var(--sr-blue-dark); margin:8px 0 12px;">
+      Venezuela Investor Explainers
+    </h1>
+    <p style="font-family:var(--font-serif); font-style:italic; color:var(--sr-gray-text); font-size:18px;">
+      Plain-English answers to the questions investors and journalists most
+      often Google about Venezuela's sanctions framework, the bolívar, the
+      BCV, and how to actually do business in Caracas.
+    </p>
+  </header>
+
+  <div class="index-grid">
+    {% for e in explainers %}
+    <article class="index-card">
+      <a class="title-link" href="{{ e.canonical_path }}">{{ e.title }}</a>
+      <div class="meta">{{ e.word_count or '—' }} words · Updated {{ e.last_generated_at.strftime('%b %d, %Y') if e.last_generated_at else '' }}</div>
+      <p class="summary">{{ e.summary or e.subtitle or '' }}</p>
+    </article>
+    {% else %}
+    <p style="color: var(--sr-gray-text);">No explainers published yet.</p>
+    {% endfor %}
+  </div>
+
+</section>
+{% endblock %}

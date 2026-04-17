@@ -1,0 +1,47 @@
+{% extends "_base.html.j2" %}
+
+{% block content %}
+<section class="container-wide">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <span>Analysis</span>
+  </nav>
+
+  <header style="margin: 16px 0 32px;">
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Venezuelan Business Network · Long-form analysis
+    </div>
+    <h1 style="font-family:var(--font-serif); font-size:36px; color:var(--sr-blue-dark); margin:8px 0 12px;">
+      Venezuelan investment & sanctions analysis
+    </h1>
+    <p style="font-family:var(--font-serif); font-style:italic; color:var(--sr-gray-text); font-size:18px; max-width:680px;">
+      In-depth briefings on OFAC general licenses, Asamblea Nacional legislation,
+      Gaceta Oficial decrees, sector-by-sector capital flows, and the macro
+      backdrop for institutional investors considering Venezuela exposure.
+    </p>
+  </header>
+
+  {% if posts %}
+  <div class="index-grid">
+    {% for p in posts %}
+    <article class="index-card">
+      {% if p.primary_sector %}
+      <div class="meta">{{ p.primary_sector|replace('_',' ')|title }} · {{ p.published_date.strftime('%b %d, %Y') }}</div>
+      {% else %}
+      <div class="meta">{{ p.published_date.strftime('%b %d, %Y') }}</div>
+      {% endif %}
+      <a class="title-link" href="/briefing/{{ p.slug }}">{{ p.title }}</a>
+      {% if p.summary %}<p class="summary">{{ p.summary }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p style="color: var(--sr-gray-text); padding: 32px 0;">
+    No analysis posts published yet — the next batch will appear after the
+    daily pipeline runs at 10:00 AM and 5:00 PM ET.
+  </p>
+  {% endif %}
+
+</section>
+{% endblock %}

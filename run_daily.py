@@ -81,6 +81,21 @@ def main(skip_scrape: bool, skip_email: bool, dry_run: bool, report_only: bool):
     else:
         console.print("\n[dim]Phase 2: Analysis — SKIPPED (report-only)[/dim]")
 
+    # Phase 2b: Long-form blog generation (capped budget; safe to fail)
+    if not report_only:
+        console.print("\n[bold cyan]Phase 2b:[/bold cyan] Writing long-form analysis posts...")
+        try:
+            from src.blog_generator import run_blog_generation
+            blog_result = run_blog_generation()
+            results["blog_generation"] = blog_result
+            console.print(f"  [green]✓[/green] Blog generation: {blog_result}")
+        except Exception as e:
+            logger.error("Blog generation failed: %s", e, exc_info=True)
+            results["blog_generation"] = {"error": str(e)}
+            console.print(f"  [yellow]![/yellow] Blog generation failed (non-fatal): {e}")
+    else:
+        console.print("\n[dim]Phase 2b: Blog generation — SKIPPED (report-only)[/dim]")
+
     # Phase 3: Generate Report
     console.print("\n[bold cyan]Phase 3:[/bold cyan] Generating report...")
     try:

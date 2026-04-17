@@ -6,12 +6,15 @@ Serves the generated report.html on Render (or locally).
 
 from __future__ import annotations
 
+import gzip
+import io
 import logging
 import time
 from pathlib import Path
 
 import httpx
 from flask import Flask, send_from_directory, abort, request, jsonify, Response
+from werkzeug.exceptions import HTTPException
 
 from src.config import settings
 from src.storage_remote import (
@@ -20,7 +23,68 @@ from src.storage_remote import (
     supabase_storage_read_enabled,
 )
 
-app = Flask(__name__)
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
+_STATIC_DIR.mkdir(parents=True, exist_ok=True)
+
+app = Flask(
+    __name__,
+    static_folder=str(_STATIC_DIR),
+    static_url_path="/static",
+)
+
+
+GZIP_MIME_PREFIXES = (
+    "text/",
+    "application/json",
+    "application/xml",
+    "application/javascript",
+    "application/ld+json",
+    "image/svg+xml",
+)
+GZIP_MIN_BYTES = 500
+
+
+@app.after_request
+def _gzip_response(response: Response) -> Response:
+    """
+    Gzip-compress eligible responses when the client advertises support.
+    Skips small bodies, already-encoded responses, and non-text content.
+    """
+    try:
+        if response.direct_passthrough:
+            return response
+        if response.status_code < 200 or response.status_code >= 300:
+            return response
+        if "Content-Encoding" in response.headers:
+            return response
+        if "gzip" not in (request.headers.get("Accept-Encoding", "") or "").lower():
+            return response
+
+        mimetype = (response.mimetype or "").lower()
+        if not any(mimetype.startswith(p) for p in GZIP_MIME_PREFIXES):
+            return response
+
+        data = response.get_data()
+        if len(data) < GZIP_MIN_BYTES:
+            return response
+
+        buf = io.BytesIO()
+        with gzip.GzipFile(fileobj=buf, mode="wb", compresslevel=6) as gz:
+            gz.write(data)
+        compressed = buf.getvalue()
+
+        response.set_data(compressed)
+        response.headers["Content-Encoding"] = "gzip"
+        response.headers["Content-Length"] = str(len(compressed))
+        existing_vary = response.headers.get("Vary", "")
+        if "Accept-Encoding" not in existing_vary:
+            response.headers["Vary"] = (existing_vary + ", Accept-Encoding").lstrip(", ")
+    except Exception as exc:
+        logger.warning("gzip middleware skipped due to error: %s", exc)
+    return response
+
+
+
 logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = settings.output_dir
@@ -133,6 +197,1338 @@ def subscribe():
     except Exception as e:
         logger.error("Buttondown request failed: %s", e)
         return jsonify({"ok": False, "error": "Service unavailable"}), 503
+
+
+def _tool_seo_jsonld(*, slug: str, title: str, description: str, keywords: str, faq: list[dict] | None = None, dataset: dict | None = None):
+    """Build standard SEO + JSON-LD payload for a /tools/* page."""
+    from src.page_renderer import _base_url, _iso, settings as _s
+    from datetime import datetime as _dt
+    import json as _json
+
+    base = _base_url()
+    canonical = f"{base}/tools/{slug}"
+    seo = {
+        "title": title,
+        "description": description,
+        "keywords": keywords,
+        "canonical": canonical,
+        "site_name": _s.site_name,
+        "site_url": base,
+        "locale": _s.site_locale,
+        "og_image": f"{base}/static/og-image.png",
+        "og_type": "website",
+        "published_iso": _iso(_dt.utcnow()),
+        "modified_iso": _iso(_dt.utcnow()),
+    }
+
+    graph = [
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                {"@type": "ListItem", "position": 2, "name": "Tools", "item": f"{base}/tools"},
+                {"@type": "ListItem", "position": 3, "name": title, "item": canonical},
+            ],
+        },
+        {
+            "@type": "WebApplication",
+            "@id": f"{canonical}#app",
+            "name": title,
+            "url": canonical,
+            "description": description,
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Any (browser-based)",
+            "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+            "publisher": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+        },
+    ]
+    if faq:
+        graph.append({
+            "@type": "FAQPage",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": q["q"],
+                    "acceptedAnswer": {"@type": "Answer", "text": q["a"]},
+                }
+                for q in faq
+            ],
+        })
+    if dataset:
+        graph.append({"@type": "Dataset", "@id": f"{canonical}#dataset", **dataset})
+
+    return seo, _json.dumps({"@context": "https://schema.org", "@graph": graph}, ensure_ascii=False)
+
+
+@app.route("/tools/caracas-safety-by-neighborhood")
+@app.route("/tools/caracas-safety-by-neighborhood/")
+def tool_caracas_safety():
+    """Curated Caracas neighborhood safety reference."""
+    try:
+        from src.data.caracas_neighborhoods import list_caracas_neighborhoods
+        from src.page_renderer import _env
+        from datetime import date as _date
+
+        neighborhoods = list_caracas_neighborhoods()
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="caracas-safety-by-neighborhood",
+            title="Caracas Safety by Neighborhood — Investor & Traveller Guide",
+            description=(
+                "Caracas neighborhood safety scores for foreign investors and "
+                "business travellers. 1–5 safety rating, business-use guidance, "
+                "and risks to avoid for Las Mercedes, Altamira, Chacao, Petare, "
+                "and other major Caracas districts."
+            ),
+            keywords="Caracas safety, safe neighborhoods Caracas, Las Mercedes Caracas, Altamira Caracas, Petare safety, Caracas business district, where to stay in Caracas",
+            faq=[
+                {
+                    "q": "What is the safest neighborhood in Caracas for foreign business travellers?",
+                    "a": "Las Mercedes, Altamira, La Castellana, and the wider Chacao municipality are the most operationally functional districts and host most foreign-investor meetings, embassies, banks, and business-class hotels.",
+                },
+                {
+                    "q": "Are areas like Petare, Catia, or 23 de Enero safe to visit?",
+                    "a": "No. These districts are not safe for foreign visitors at any time. Do not enter — including by metro or taxi pass-through.",
+                },
+                {
+                    "q": "Is the Caracas airport road safe?",
+                    "a": "The Maiquetía / Catia La Mar corridor between Simón Bolívar International Airport and Caracas carries elevated highway-robbery risk, particularly at night. Always pre-arrange a vetted driver and travel during daylight when possible.",
+                },
+            ],
+        )
+
+        template = _env.get_template("tools/safety_map.html.j2")
+        html = template.render(
+            neighborhoods=neighborhoods,
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("safety map render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/tools/venezuela-visa-requirements")
+@app.route("/tools/venezuela-visa-requirements/")
+def tool_visa_requirements():
+    """Venezuela visa & travel-advisory checker by passport country."""
+    try:
+        from src.data.visa_requirements import list_visa_requirements
+        from src.page_renderer import _env
+        from datetime import date as _date
+
+        visas = list_visa_requirements()
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="venezuela-visa-requirements",
+            title="Venezuela Visa Requirements & Travel Advisory by Country",
+            description=(
+                "Free Venezuela visa requirements checker. See whether you "
+                "need a visa for Venezuela based on your passport country, "
+                "the maximum stay, the current travel-advisory level, and "
+                "what investors should know before booking a trip to Caracas."
+            ),
+            keywords="Venezuela visa, do I need a visa for Venezuela, Venezuela travel advisory, Venezuela tourist visa, Venezuela business visa, Caracas travel requirements",
+            faq=[
+                {
+                    "q": "Do US citizens need a visa to travel to Venezuela?",
+                    "a": "Yes. US citizens require a tourist (TR-V) or business (TR-N) visa issued in advance by the Venezuelan diplomatic mission. The US State Department also rates Venezuela at travel advisory Level 4 — Do Not Travel.",
+                },
+                {
+                    "q": "Do UK and Canadian citizens need a visa to travel to Venezuela?",
+                    "a": "No. Both UK and Canadian citizens can enter visa-free for tourist stays of up to 90 days. However, both governments currently advise against non-essential travel.",
+                },
+                {
+                    "q": "Is Venezuela safe for business travel?",
+                    "a": "Most Western governments rate Venezuela as a high-risk destination. Sophisticated investors typically conduct primary meetings in third-country jurisdictions (Bogotá, Panama, Madrid, Dubai) and use local counsel for in-country execution.",
+                },
+            ],
+        )
+
+        template = _env.get_template("tools/visa_requirements.html.j2")
+        html = template.render(
+            visas=visas,
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("visa tool render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/tools/venezuela-investment-roi-calculator")
+@app.route("/tools/venezuela-investment-roi-calculator/")
+def tool_roi_calculator():
+    """Sector ROI / IRR / NPV calculator with Venezuela risk premium overlays."""
+    try:
+        from src.page_renderer import _env
+        from datetime import date as _date
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="venezuela-investment-roi-calculator",
+            title="Venezuela Investment ROI Calculator — IRR, NPV, Cash Flow Tool",
+            description=(
+                "Free Venezuela investment ROI calculator. Estimate IRR, NPV, "
+                "and multi-year cash flow for oil & gas, mining, real estate, "
+                "banking, agriculture, telecom, and tourism — with sector-specific "
+                "Venezuela risk premiums built in."
+            ),
+            keywords="Venezuela investment calculator, Venezuela IRR calculator, Venezuela NPV, Venezuela ROI, mining investment Venezuela, oil gas Venezuela ROI, sector risk premium Venezuela",
+            faq=[
+                {
+                    "q": "How is the Venezuela risk premium calculated?",
+                    "a": "Sector-specific premiums are anchored to traded Venezuelan sovereign-debt spreads (where available) and adjusted by sector based on sanctions exposure, foreign-investor dispute history, and FX repatriation friction. Defaults range from approximately 6% (tourism) to 12% (oil & gas).",
+                },
+                {
+                    "q": "What's a reasonable discount rate for a Venezuelan investment?",
+                    "a": "Most institutional investors use a USD-denominated WACC of 10-15% as the base, then add the sector-specific Venezuela risk premium of 6-12%, for an all-in discount rate of 16-27%.",
+                },
+                {
+                    "q": "Is this calculator a substitute for a fully diligenced model?",
+                    "a": "No. The calculator is a first-round filter that surfaces order-of-magnitude returns. A real investment decision requires a fully diligenced model with country-of-origin tax structure, FX repatriation friction, OFAC compliance overlay, and project-finance terms.",
+                },
+            ],
+        )
+
+        template = _env.get_template("tools/roi_calculator.html.j2")
+        html = template.render(
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("ROI calculator render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/tools/bolivar-usd-exchange-rate")
+@app.route("/tools/bolivar-usd-exchange-rate/")
+def tool_bolivar_usd():
+    """Live BCV rate widget + free converter."""
+    try:
+        from src.models import ExternalArticleEntry, SessionLocal, SourceType, init_db
+        from src.scraper.bcv import BCVScraper
+        from src.page_renderer import _env
+        from datetime import date as _date
+
+        rate_usd: float | None = None
+        rate_eur: float | None = None
+        rate_date: str = ""
+
+        init_db()
+        db = SessionLocal()
+        try:
+            cached = (
+                db.query(ExternalArticleEntry)
+                .filter(ExternalArticleEntry.source == SourceType.BCV_RATES)
+                .order_by(ExternalArticleEntry.published_date.desc())
+                .first()
+            )
+            if cached and cached.extra_metadata:
+                meta = cached.extra_metadata or {}
+                rate_usd = meta.get("usd")
+                rate_eur = meta.get("eur")
+                rate_date = cached.published_date.isoformat()
+        finally:
+            db.close()
+
+        if rate_usd is None:
+            try:
+                scraper = BCVScraper()
+                result = scraper.scrape()
+                if result.success and result.articles:
+                    meta = result.articles[0].extra_metadata or {}
+                    rate_usd = meta.get("usd")
+                    rate_eur = meta.get("eur")
+                    rate_date = _date.today().isoformat()
+            except Exception as exc:
+                logger.warning("live BCV scrape failed for tool: %s", exc)
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="bolivar-usd-exchange-rate",
+            title=(
+                f"Bolívar to USD Exchange Rate Today — Bs. {rate_usd:.4f}/US$1"
+                if rate_usd else
+                "Venezuelan Bolívar to USD Exchange Rate — Live BCV Rate"
+            ),
+            description=(
+                f"Today's official Banco Central de Venezuela USD/VES rate is "
+                f"Bs. {rate_usd:.4f} per US$1. Free Bolivar/Dollar converter, "
+                f"Euro cross-rate, and analysis of why the parallel rate diverges."
+                if rate_usd else
+                "Live Banco Central de Venezuela USD/VES exchange rate, free "
+                "Bolivar/Dollar converter, Euro cross-rate, and parallel-market context."
+            ),
+            keywords="bolivar to dollar, BCV exchange rate, VES USD, Venezuelan bolivar exchange rate, dolar BCV, bolivar converter",
+            faq=[
+                {
+                    "q": "What is the current official Venezuelan Bolívar to US Dollar rate?",
+                    "a": (
+                        f"The official Banco Central de Venezuela (BCV) rate is currently Bs. "
+                        f"{rate_usd:.4f} per US$1 as of {rate_date}."
+                        if rate_usd else
+                        "The official rate is published daily by the Banco Central de Venezuela on bcv.org.ve. The live value is displayed at the top of this page when the BCV homepage is reachable."
+                    ),
+                },
+                {
+                    "q": "Why does the parallel exchange rate differ from the BCV rate?",
+                    "a": "Venezuela operates under a managed float. The official BCV rate is used for taxes, customs, and public-sector transactions, while a parallel rate emerges from informal trading. Divergence widens in periods of currency stress and reflects unmet hard-currency demand.",
+                },
+                {
+                    "q": "Can foreign investors freely convert bolívars to USD?",
+                    "a": "Capital repatriation in foreign currency requires registration with the BCV and approval against the prevailing exchange-control regulations. FX availability remains the single largest operational risk for foreign investors.",
+                },
+            ],
+        )
+
+        template = _env.get_template("tools/bolivar_usd.html.j2")
+        html = template.render(
+            rate_usd=rate_usd,
+            rate_eur=rate_eur,
+            rate_date=rate_date or _date.today().isoformat(),
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("bolivar tool render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/tools/ofac-venezuela-sanctions-checker")
+@app.route("/tools/ofac-venezuela-sanctions-checker/")
+def tool_ofac_sanctions_checker():
+    """Search the cached OFAC SDN data for fuzzy matches against a query."""
+    try:
+        from src.models import ExternalArticleEntry, SessionLocal, SourceType, init_db
+        from src.page_renderer import _env
+        from datetime import date as _date
+        from difflib import SequenceMatcher
+        import re as _re
+
+        query = (request.args.get("q") or "").strip()
+        matches: list[dict] = []
+        total_sdn = 0
+
+        init_db()
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(ExternalArticleEntry)
+                .filter(ExternalArticleEntry.source == SourceType.OFAC_SDN)
+                .all()
+            )
+            total_sdn = len(rows)
+
+            if query:
+                q_low = query.lower()
+                q_norm = _re.sub(r"[^a-z0-9]+", "", q_low)
+
+                for r in rows:
+                    meta = r.extra_metadata or {}
+                    name = (meta.get("name") or r.headline or "").strip()
+                    program = (meta.get("program") or "").strip()
+                    remarks = (meta.get("remarks") or "").strip()
+                    ent_type = (meta.get("type") or "entity").lower()
+
+                    haystack = " ".join([name, program, remarks]).lower()
+                    haystack_norm = _re.sub(r"[^a-z0-9]+", "", haystack)
+
+                    score = 0.0
+                    if q_low in haystack:
+                        score = max(score, 0.95)
+                    elif q_norm and q_norm in haystack_norm:
+                        score = max(score, 0.85)
+                    else:
+                        ratio = SequenceMatcher(None, q_low, name.lower()).ratio()
+                        if ratio >= 0.7:
+                            score = max(score, ratio)
+
+                    if score >= 0.7:
+                        matches.append({
+                            "name": name,
+                            "type": ent_type,
+                            "program": program,
+                            "remarks": remarks,
+                            "score": int(round(score * 100)),
+                        })
+
+                matches.sort(key=lambda m: m["score"], reverse=True)
+                matches = matches[:30]
+        finally:
+            db.close()
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="ofac-venezuela-sanctions-checker",
+            title="OFAC Venezuela Sanctions Exposure Checker — Free Screening Tool",
+            description=(
+                f"Free OFAC sanctions screening tool: check any name, company, "
+                f"vessel IMO, aircraft tail number, or Venezuelan cédula against "
+                f"all {total_sdn} active Venezuela-related SDN designations."
+            ),
+            keywords="OFAC sanctions checker Venezuela, SDN screening, PDVSA sanctions check, Venezuela sanctions compliance, OFAC fuzzy match",
+            faq=[
+                {
+                    "q": "How accurate is this OFAC sanctions check?",
+                    "a": "This tool uses fuzzy matching against the OFAC SDN list filtered for Venezuela-related programs. It surfaces likely matches but does not perform full ownership-chain analysis (OFAC 50% Rule) or check non-SDN sectoral lists. Always verify with the official OFAC source and consider qualified sanctions counsel for high-stakes counterparties.",
+                },
+                {
+                    "q": "What data is checked?",
+                    "a": f"All {total_sdn} entries on the OFAC consolidated SDN list filtered for Venezuela programs (VENEZUELA, VENEZUELA-EO13850, VENEZUELA-EO13884), refreshed twice daily. The tool searches names, aliases, IMO numbers, aircraft tail numbers, Venezuelan cédulas, and SDN remarks fields.",
+                },
+                {
+                    "q": "Is this tool free?",
+                    "a": "Yes. The OFAC sanctions exposure checker is completely free to use, with no registration required.",
+                },
+            ],
+        )
+
+        template = _env.get_template("tools/ofac_sanctions_checker.html.j2")
+        html = template.render(
+            query=query,
+            matches=matches,
+            total_sdn=total_sdn,
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("sanctions checker render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/tools/ofac-venezuela-general-licenses")
+@app.route("/tools/ofac-venezuela-general-licenses/")
+def tool_ofac_general_licenses():
+    """Searchable lookup of OFAC Venezuela general licenses."""
+    try:
+        from src.data.ofac_general_licenses import list_general_licenses
+        from src.page_renderer import _env
+        from datetime import date as _date
+
+        licenses = list_general_licenses()
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="ofac-venezuela-general-licenses",
+            title="OFAC Venezuela General License Lookup — Free Compliance Tool",
+            description=(
+                "Free searchable directory of the active OFAC general licenses "
+                "authorising transactions involving PdVSA, Chevron, CITGO, "
+                "Venezuelan sovereign debt, and Venezuelan gold-sector entities. "
+                "Updated whenever OFAC publishes new actions."
+            ),
+            keywords="OFAC general license, GL 5T Venezuela, GL 8M PDVSA, GL 41 Chevron Venezuela, GL 44A oil, OFAC Venezuela compliance",
+            faq=[
+                {
+                    "q": "What is an OFAC general license?",
+                    "a": "An OFAC general license is a published authorisation that permits a defined category of transaction that would otherwise be prohibited by US sanctions, without each party having to apply for an individual specific license.",
+                },
+                {
+                    "q": "Which OFAC general license covers Chevron's Venezuelan operations?",
+                    "a": "General License 41 authorises Chevron Corporation to lift, sell, and import Venezuelan-origin crude oil and petroleum products into the United States subject to specific conditions, including no payment of taxes or royalties to the Government of Venezuela.",
+                },
+                {
+                    "q": "Are OFAC general licenses permanent?",
+                    "a": "No. Most Venezuela-related general licenses are subject to periodic renewal, modification, or revocation by OFAC. Always confirm the current text and expiration on the OFAC website before relying on a general license.",
+                },
+            ],
+        )
+
+        template = _env.get_template("tools/ofac_general_licenses.html.j2")
+        html = template.render(
+            licenses=licenses,
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("tool render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/tools")
+@app.route("/tools/")
+def tools_index():
+    """Index of all free Venezuela investor tools."""
+    try:
+        from src.page_renderer import _env, _base_url, _iso, settings as _s
+        from datetime import date as _date, datetime as _dt
+        import json as _json
+
+        tools = [
+            {
+                "url": "/tools/ofac-venezuela-sanctions-checker",
+                "name": "OFAC Venezuela Sanctions Exposure Checker",
+                "category": "Compliance",
+                "summary": "Search any name, company, vessel IMO, aircraft tail number, or Venezuelan cédula against every active Venezuela-related OFAC SDN designation, with fuzzy matching and a clean compliance disclaimer.",
+            },
+            {
+                "url": "/tools/ofac-venezuela-general-licenses",
+                "name": "OFAC Venezuela General License Lookup",
+                "category": "Compliance",
+                "summary": "Searchable directory of the active OFAC general licenses authorising transactions involving PdVSA, Chevron, CITGO, Venezuelan sovereign debt, and gold-sector entities.",
+            },
+            {
+                "url": "/tools/bolivar-usd-exchange-rate",
+                "name": "Bolívar / USD Exchange Rate & Converter",
+                "category": "Markets",
+                "summary": "Live BCV USD/VES rate, EUR cross-rate, and a free converter pulled from the Banco Central de Venezuela homepage. Falls back to cached values when the BCV site is unreachable.",
+            },
+            {
+                "url": "/tools/venezuela-investment-roi-calculator",
+                "name": "Venezuela Investment ROI Calculator",
+                "category": "Modelling",
+                "summary": "Estimate IRR, NPV, and multi-year cash flow across oil & gas, mining, real estate, banking, agriculture, telecom, and tourism — with sector-specific Venezuela risk premiums baked in.",
+            },
+            {
+                "url": "/tools/caracas-safety-by-neighborhood",
+                "name": "Caracas Safety Score by Neighborhood",
+                "category": "Travel",
+                "summary": "Curated 1–5 safety rating for every major Caracas neighborhood (Las Mercedes, Altamira, Petare, Catia, and more), with business-use guidance and specific risks to avoid.",
+            },
+            {
+                "url": "/tools/venezuela-visa-requirements",
+                "name": "Venezuela Visa & Travel Requirements",
+                "category": "Travel",
+                "summary": "Pick your passport country to see whether you need a visa for Venezuela, the maximum stay, the current US/UK travel-advisory level, and what investors should know before flying.",
+            },
+        ]
+
+        base = _base_url()
+        canonical = f"{base}/tools"
+        seo = {
+            "title": "Free Venezuela Investor Tools — Sanctions, BCV, ROI Calculator",
+            "description": "Free toolkit for evaluating Venezuelan exposure: OFAC sanctions screening, OFAC general license lookup, live BCV USD rate, sector ROI calculator, Caracas safety map, and visa requirements.",
+            "keywords": "Venezuela investor tools, OFAC checker, BCV rate, Venezuela ROI calculator, Caracas safety, Venezuela visa",
+            "canonical": canonical,
+            "site_name": _s.site_name,
+            "site_url": base,
+            "locale": _s.site_locale,
+            "og_image": f"{base}/static/og-image.png",
+            "og_type": "website",
+            "published_iso": _iso(_dt.utcnow()),
+            "modified_iso": _iso(_dt.utcnow()),
+        }
+        jsonld = _json.dumps({
+            "@context": "https://schema.org",
+            "@graph": [
+                {
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                        {"@type": "ListItem", "position": 2, "name": "Tools", "item": canonical},
+                    ],
+                },
+                {
+                    "@type": "ItemList",
+                    "@id": f"{canonical}#tools",
+                    "name": "Free Venezuela Investor Tools",
+                    "itemListElement": [
+                        {
+                            "@type": "ListItem",
+                            "position": i + 1,
+                            "url": f"{base}{t['url']}",
+                            "name": t["name"],
+                        }
+                        for i, t in enumerate(tools)
+                    ],
+                },
+            ],
+        }, ensure_ascii=False)
+
+        template = _env.get_template("tools_index.html.j2")
+        html = template.render(tools=tools, seo=seo, jsonld=jsonld, current_year=_date.today().year)
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("tools index render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/explainers")
+@app.route("/explainers/")
+def explainers_index():
+    """Index of evergreen explainers."""
+    try:
+        from src.models import LandingPage, SessionLocal, init_db
+        from src.page_renderer import _env, _base_url, _iso, settings as _s
+        from datetime import date as _date, datetime as _dt
+        import json as _json
+
+        init_db()
+        db = SessionLocal()
+        try:
+            explainers = (
+                db.query(LandingPage)
+                .filter(LandingPage.page_type == "explainer")
+                .order_by(LandingPage.last_generated_at.desc())
+                .all()
+            )
+        finally:
+            db.close()
+
+        base = _base_url()
+        canonical = f"{base}/explainers"
+        seo = {
+            "title": "Venezuela Investor Explainers — Plain-English Guides",
+            "description": "Evergreen plain-English explainers covering OFAC sanctions on Venezuela, the Banco Central de Venezuela (BCV), the bolívar, how to buy Venezuelan bonds, and doing business in Caracas.",
+            "keywords": "Venezuela explainer, OFAC Venezuela explained, BCV explained, bolivar history, Venezuelan bonds, doing business in Caracas",
+            "canonical": canonical,
+            "site_name": _s.site_name,
+            "site_url": base,
+            "locale": _s.site_locale,
+            "og_image": f"{base}/static/og-image.png",
+            "og_type": "website",
+            "published_iso": _iso(_dt.utcnow()),
+            "modified_iso": _iso(_dt.utcnow()),
+        }
+        jsonld = _json.dumps({
+            "@context": "https://schema.org",
+            "@graph": [
+                {
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                        {"@type": "ListItem", "position": 2, "name": "Explainers", "item": canonical},
+                    ],
+                },
+                {
+                    "@type": "ItemList",
+                    "@id": f"{canonical}#list",
+                    "name": "Venezuela Investor Explainers",
+                    "itemListElement": [
+                        {
+                            "@type": "ListItem",
+                            "position": i + 1,
+                            "url": f"{base}{e.canonical_path}",
+                            "name": e.title,
+                        }
+                        for i, e in enumerate(explainers)
+                    ],
+                },
+            ],
+        }, ensure_ascii=False)
+
+        template = _env.get_template("explainers_index.html.j2")
+        html = template.render(explainers=explainers, seo=seo, jsonld=jsonld, current_year=_date.today().year)
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("explainers index render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/explainers/<slug>")
+def explainer_page(slug: str):
+    """Evergreen explainer landing page."""
+    try:
+        from src.models import BlogPost, LandingPage, SessionLocal, init_db
+        from src.page_renderer import render_landing_page
+
+        init_db()
+        db = SessionLocal()
+        try:
+            page = (
+                db.query(LandingPage)
+                .filter(LandingPage.page_key == f"explainer:{slug}")
+                .first()
+            )
+            if not page:
+                abort(404)
+            recent = (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc())
+                .limit(6)
+                .all()
+            )
+            html = render_landing_page(page, recent_briefings=recent)
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("explainer page render failed for slug=%s: %s", slug, exc)
+        abort(500)
+
+
+@app.route("/sources")
+@app.route("/sources/")
+def sources_page():
+    """Methodology + primary sources we monitor — authority signal page."""
+    try:
+        from src.models import (
+            AssemblyNewsEntry,
+            ExternalArticleEntry,
+            GazetteEntry,
+            SessionLocal,
+            SourceType,
+            init_db,
+        )
+        from src.page_renderer import _env, _base_url, _iso, settings as _s
+        from datetime import date as _date, datetime as _dt
+        import json as _json
+
+        init_db()
+        db = SessionLocal()
+        try:
+            def _count_ext(src: SourceType) -> int:
+                try:
+                    return db.query(ExternalArticleEntry).filter(ExternalArticleEntry.source == src).count()
+                except Exception:
+                    return 0
+
+            sources = [
+                {
+                    "name": "OFAC Specially Designated Nationals (SDN) list",
+                    "kind": "US Treasury", "tier": "Primary",
+                    "url": "https://www.treasury.gov/ofac/downloads/sdn.csv",
+                    "description": "The complete US Treasury OFAC consolidated SDN list, filtered for Venezuela-related programs (VENEZUELA, VENEZUELA-EO13850, VENEZUELA-EO13884). Tracks every individual, entity, vessel, and aircraft sanctioned in connection with Venezuela.",
+                    "cadence": "Twice daily (10am, 5pm)",
+                    "entries_count": _count_ext(SourceType.OFAC_SDN),
+                },
+                {
+                    "name": "US Federal Register — Venezuela",
+                    "kind": "US Government", "tier": "Primary",
+                    "url": "https://www.federalregister.gov/documents/search?conditions[term]=venezuela",
+                    "description": "Final rules, proposed rules, executive orders, and notices published by federal agencies. Source of truth for OFAC general licenses, sanctions actions, and trade rule changes.",
+                    "cadence": "Twice daily",
+                    "entries_count": _count_ext(SourceType.FEDERAL_REGISTER),
+                },
+                {
+                    "name": "Asamblea Nacional de Venezuela",
+                    "kind": "Venezuelan Government", "tier": "Primary",
+                    "url": "https://www.asambleanacional.gob.ve",
+                    "description": "Official news feed of the Venezuelan National Assembly: bills introduced, laws passed, committee work, and parliamentary diplomacy. Translated into English by our analyzer.",
+                    "cadence": "Twice daily",
+                    "entries_count": db.query(AssemblyNewsEntry).count(),
+                },
+                {
+                    "name": "Gaceta Oficial de la República Bolivariana de Venezuela",
+                    "kind": "Venezuelan Government", "tier": "Primary",
+                    "url": "https://tugacetaoficial.com",
+                    "description": "The official gazette publishing every Venezuelan law, decree, and government resolution. We OCR scanned PDFs and persist the underlying text so each item is searchable and analyzable.",
+                    "cadence": "Twice daily",
+                    "entries_count": db.query(GazetteEntry).count(),
+                },
+                {
+                    "name": "Banco Central de Venezuela (BCV)",
+                    "kind": "Venezuelan Government", "tier": "Primary",
+                    "url": "https://www.bcv.org.ve",
+                    "description": "Official daily exchange rate of the bolivar against the US dollar, plus monetary policy announcements. Used as a baseline for all Venezuela-USD conversions on this site.",
+                    "cadence": "Daily",
+                    "entries_count": None,
+                },
+                {
+                    "name": "US State Department — Venezuela travel advisory",
+                    "kind": "US Government", "tier": "Primary",
+                    "url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/venezuela-travel-advisory.html",
+                    "description": "Official US State Department travel advisory level for Venezuela. Used in the security and operating-environment sections of the pillar guide and travel-related tools.",
+                    "cadence": "Daily check, alerts on level change",
+                    "entries_count": None,
+                },
+                {
+                    "name": "GDELT Project (global event database)",
+                    "kind": "Open data", "tier": "Secondary",
+                    "url": "https://www.gdeltproject.org",
+                    "description": "Global news event database used as a tone signal — we use the GDELT V2 GKG tone score as one of the inputs that decides which items get the more expensive LLM analysis treatment.",
+                    "cadence": "Twice daily",
+                    "entries_count": _count_ext(SourceType.GDELT),
+                },
+            ]
+
+            base = _base_url()
+            canonical = f"{base}/sources"
+            seo = {
+                "title": "Sources & Methodology — Venezuelan Business Network",
+                "description": (
+                    "How Venezuelan Business Network produces its investor briefings: "
+                    "primary Venezuelan and US government sources we monitor, refresh "
+                    "cadence, LLM filtering pipeline, and editorial standards."
+                ),
+                "keywords": "Venezuela investment sources, OFAC monitoring, Asamblea Nacional, Gaceta Oficial, BCV, methodology",
+                "canonical": canonical,
+                "site_name": _s.site_name,
+                "site_url": base,
+                "locale": _s.site_locale,
+                "og_image": f"{base}/static/og-image.png",
+                "og_type": "website",
+                "published_iso": _iso(_dt.utcnow()),
+                "modified_iso": _iso(_dt.utcnow()),
+            }
+            jsonld = _json.dumps({
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                            {"@type": "ListItem", "position": 2, "name": "Sources & Methodology", "item": canonical},
+                        ],
+                    },
+                    {
+                        "@type": "AboutPage",
+                        "@id": f"{canonical}#about",
+                        "url": canonical,
+                        "name": seo["title"],
+                        "description": seo["description"],
+                        "publisher": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+                    },
+                ],
+            }, ensure_ascii=False)
+
+            template = _env.get_template("sources.html.j2")
+            html = template.render(
+                sources=sources,
+                seo=seo,
+                jsonld=jsonld,
+                current_year=_date.today().year,
+            )
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("sources page render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/sanctions-tracker")
+@app.route("/sanctions-tracker/")
+def sanctions_tracker():
+    """OFAC SDN tracker — searchable / filterable table of all designations."""
+    try:
+        from src.models import ExternalArticleEntry, SessionLocal, SourceType, init_db
+        from src.page_renderer import _env, _base_url, _iso, settings as _s
+        from datetime import date as _date, datetime as _dt
+        import json as _json
+
+        init_db()
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(ExternalArticleEntry)
+                .filter(ExternalArticleEntry.source == SourceType.OFAC_SDN)
+                .order_by(ExternalArticleEntry.published_date.desc())
+                .all()
+            )
+
+            sdn_entries = []
+            stats = {
+                "total": 0, "individuals": 0, "entities": 0,
+                "vessels": 0, "aircraft": 0,
+            }
+            for r in rows:
+                meta = r.extra_metadata or {}
+                ent_type = (meta.get("type") or "").lower()
+                if ent_type not in ("individual", "vessel", "aircraft", "entity"):
+                    ent_type = "entity"
+                sdn_entries.append({
+                    "name": meta.get("name") or r.headline,
+                    "type": ent_type,
+                    "program": meta.get("program") or "",
+                    "remarks": meta.get("remarks") or "",
+                })
+                stats["total"] += 1
+                stats[
+                    "individuals" if ent_type == "individual"
+                    else "vessels" if ent_type == "vessel"
+                    else "aircraft" if ent_type == "aircraft"
+                    else "entities"
+                ] += 1
+
+            base = _base_url()
+            canonical = f"{base}/sanctions-tracker"
+            seo = {
+                "title": f"OFAC Venezuela Sanctions Tracker — {stats['total']} active designations",
+                "description": (
+                    f"Live tracker of {stats['total']} US Treasury OFAC SDN designations "
+                    "under Venezuela-related programs. Search by name, vessel, aircraft, or "
+                    "program. Refreshed twice daily."
+                ),
+                "keywords": "OFAC Venezuela sanctions, SDN list Venezuela, PDVSA sanctions, Venezuela vessel sanctions, OFAC SDN search",
+                "canonical": canonical,
+                "site_name": _s.site_name,
+                "site_url": base,
+                "locale": _s.site_locale,
+                "og_image": f"{base}/static/og-image.png",
+                "og_type": "website",
+                "published_iso": _iso(_dt.utcnow()),
+                "modified_iso": _iso(_dt.utcnow()),
+            }
+
+            jsonld = _json.dumps({
+                "@context": "https://schema.org",
+                "@graph": [
+                    {
+                        "@type": "BreadcrumbList",
+                        "itemListElement": [
+                            {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                            {"@type": "ListItem", "position": 2, "name": "Invest in Venezuela", "item": f"{base}/invest-in-venezuela"},
+                            {"@type": "ListItem", "position": 3, "name": "OFAC Sanctions Tracker", "item": canonical},
+                        ],
+                    },
+                    {
+                        "@type": "Dataset",
+                        "@id": f"{canonical}#dataset",
+                        "name": "OFAC Venezuela SDN Tracker",
+                        "description": seo["description"],
+                        "url": canonical,
+                        "creator": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+                        "license": "https://www.usa.gov/government-works",
+                        "isAccessibleForFree": True,
+                        "variableMeasured": ["name", "type", "program", "remarks"],
+                        "distribution": [{
+                            "@type": "DataDownload",
+                            "encodingFormat": "text/csv",
+                            "contentUrl": "https://www.treasury.gov/ofac/downloads/sdn.csv",
+                        }],
+                    },
+                ],
+            }, ensure_ascii=False)
+
+            template = _env.get_template("sanctions_tracker.html.j2")
+            html = template.render(
+                sdn_entries=sdn_entries,
+                stats=stats,
+                seo=seo,
+                jsonld=jsonld,
+                current_year=_date.today().year,
+            )
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("sanctions tracker render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/calendar")
+@app.route("/calendar/")
+def calendar_page():
+    """Standalone investor calendar page — same data the home report uses."""
+    try:
+        from src.report_generator import _build_calendar
+        from src.models import (
+            AssemblyNewsEntry,
+            ExternalArticleEntry,
+            GazetteStatus,
+            SessionLocal,
+            init_db,
+        )
+        from src.page_renderer import _env, _base_url, _iso, settings as _s
+        from datetime import date as _date, datetime as _dt, timedelta as _td
+        import json as _json
+
+        init_db()
+        db = SessionLocal()
+        try:
+            cutoff = _date.today() - _td(days=settings.report_lookback_days)
+            ext = (
+                db.query(ExternalArticleEntry)
+                .filter(ExternalArticleEntry.status == GazetteStatus.ANALYZED)
+                .filter(ExternalArticleEntry.published_date >= cutoff)
+                .all()
+            )
+            asm = (
+                db.query(AssemblyNewsEntry)
+                .filter(AssemblyNewsEntry.status == GazetteStatus.ANALYZED)
+                .filter(AssemblyNewsEntry.published_date >= cutoff)
+                .all()
+            )
+            calendar_events = _build_calendar(ext, asm)
+
+            base = _base_url()
+            canonical = f"{base}/calendar"
+            seo = {
+                "title": "Venezuela Investor Calendar — OFAC, BCV, Asamblea key dates",
+                "description": (
+                    "Upcoming OFAC license expirations, Asamblea Nacional sessions, BCV "
+                    "announcements, and sovereign debt deadlines. Updated twice daily."
+                ),
+                "keywords": "Venezuela investor calendar, OFAC license expiration, Asamblea Nacional dates, BCV calendar",
+                "canonical": canonical,
+                "site_name": _s.site_name,
+                "site_url": base,
+                "locale": _s.site_locale,
+                "og_image": f"{base}/static/og-image.png",
+                "og_type": "website",
+                "published_iso": _iso(_dt.utcnow()),
+                "modified_iso": _iso(_dt.utcnow()),
+            }
+            jsonld = _json.dumps({
+                "@context": "https://schema.org",
+                "@graph": [{
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                        {"@type": "ListItem", "position": 2, "name": "Invest in Venezuela", "item": f"{base}/invest-in-venezuela"},
+                        {"@type": "ListItem", "position": 3, "name": "Investor Calendar", "item": canonical},
+                    ],
+                }],
+            }, ensure_ascii=False)
+
+            template = _env.get_template("calendar.html.j2")
+            html = template.render(
+                calendar_events=calendar_events,
+                seo=seo,
+                jsonld=jsonld,
+                current_year=_date.today().year,
+            )
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("calendar page render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/sectors/<slug>")
+def sector_page(slug: str):
+    """Evergreen sector landing page."""
+    try:
+        from src.models import BlogPost, LandingPage, SessionLocal, init_db
+        from src.page_renderer import render_landing_page
+
+        init_db()
+        db = SessionLocal()
+        try:
+            page = (
+                db.query(LandingPage)
+                .filter(LandingPage.page_key == f"sector:{slug}")
+                .first()
+            )
+            if not page:
+                abort(404)
+
+            normalized = slug.replace("-", "_")
+            recent = (
+                db.query(BlogPost)
+                .filter(
+                    (BlogPost.primary_sector == normalized)
+                    | (BlogPost.primary_sector == slug)
+                )
+                .order_by(BlogPost.published_date.desc())
+                .limit(8)
+                .all()
+            )
+            html = render_landing_page(page, recent_briefings=recent)
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("sector page render failed for slug=%s: %s", slug, exc)
+        abort(500)
+
+
+@app.route("/invest-in-venezuela")
+@app.route("/invest-in-venezuela/")
+def pillar_invest_in_venezuela():
+    """Evergreen pillar landing page."""
+    try:
+        from src.models import BlogPost, LandingPage, SessionLocal, init_db
+        from src.page_renderer import render_landing_page
+
+        init_db()
+        db = SessionLocal()
+        try:
+            page = (
+                db.query(LandingPage)
+                .filter(LandingPage.page_key == "pillar:invest-in-venezuela")
+                .first()
+            )
+            if not page:
+                abort(503, description="Pillar page not yet generated. Run `python scripts/generate_landing_pages.py --pillar`.")
+            recent = (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc())
+                .limit(6)
+                .all()
+            )
+            html = render_landing_page(page, recent_briefings=recent)
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("pillar render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/briefing")
+@app.route("/briefing/")
+def briefing_index():
+    """List all long-form blog posts, newest first."""
+    try:
+        from src.models import BlogPost, SessionLocal, init_db
+        from src.page_renderer import render_blog_index
+
+        init_db()
+        db = SessionLocal()
+        try:
+            posts = (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc(), BlogPost.id.desc())
+                .limit(200)
+                .all()
+            )
+            html = render_blog_index(posts)
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("briefing index render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/briefing/feed.xml")
+def briefing_feed():
+    """Atom feed of the most recent blog posts."""
+    try:
+        from src.models import BlogPost, SessionLocal, init_db
+        from src.page_renderer import render_blog_feed_xml
+
+        init_db()
+        db = SessionLocal()
+        try:
+            posts = (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc(), BlogPost.id.desc())
+                .limit(50)
+                .all()
+            )
+            xml = render_blog_feed_xml(posts)
+            return Response(xml, mimetype="application/atom+xml")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("briefing feed render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/briefing/<slug>")
+def briefing_post(slug: str):
+    """Render a single blog post by slug."""
+    try:
+        from src.models import BlogPost, SessionLocal, init_db
+        from src.page_renderer import render_blog_post
+
+        init_db()
+        db = SessionLocal()
+        try:
+            post = db.query(BlogPost).filter(BlogPost.slug == slug).first()
+            if not post:
+                abort(404)
+
+            related_q = db.query(BlogPost).filter(BlogPost.id != post.id)
+            if post.primary_sector:
+                related_q = related_q.filter(BlogPost.primary_sector == post.primary_sector)
+            related = (
+                related_q.order_by(BlogPost.published_date.desc()).limit(5).all()
+            )
+            if len(related) < 3:
+                fill = (
+                    db.query(BlogPost)
+                    .filter(BlogPost.id != post.id)
+                    .filter(~BlogPost.id.in_([r.id for r in related]))
+                    .order_by(BlogPost.published_date.desc())
+                    .limit(5 - len(related))
+                    .all()
+                )
+                related.extend(fill)
+
+            html = render_blog_post(post, related=related)
+            return Response(html, mimetype="text/html")
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("briefing post render failed for slug=%s: %s", slug, exc)
+        abort(500)
+
+
+@app.route("/robots.txt")
+def robots_txt():
+    """
+    robots.txt — allow indexing of the public report and tools, point at
+    the dynamic sitemap, and explicitly disallow API and health endpoints.
+    """
+    base = settings.site_url.rstrip("/")
+    body = (
+        "User-agent: *\n"
+        "Allow: /\n"
+        "Disallow: /api/\n"
+        "Disallow: /health\n"
+        f"Sitemap: {base}/sitemap.xml\n"
+    )
+    return Response(body, mimetype="text/plain")
+
+
+@app.route("/sitemap.xml")
+def sitemap_xml():
+    """
+    Dynamic sitemap.xml. Reads recent analyzed entries from the DB and
+    emits an entry per briefing alongside static pages (home, tools,
+    sectors). Falls back to a minimal sitemap if the DB is unavailable.
+    """
+    from datetime import date as _date, datetime as _datetime, timezone as _tz, timedelta as _td
+    from xml.sax.saxutils import escape as _xml_escape
+
+    base = settings.site_url.rstrip("/")
+    today_iso = _datetime.utcnow().replace(tzinfo=_tz.utc).date().isoformat()
+
+    static_urls = [
+        {"loc": f"{base}/", "lastmod": today_iso, "changefreq": "daily", "priority": "1.0"},
+        {"loc": f"{base}/invest-in-venezuela", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.9"},
+        {"loc": f"{base}/sanctions-tracker", "lastmod": today_iso, "changefreq": "daily", "priority": "0.9"},
+        {"loc": f"{base}/calendar", "lastmod": today_iso, "changefreq": "daily", "priority": "0.7"},
+        {"loc": f"{base}/sources", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.6"},
+        {"loc": f"{base}/briefing", "lastmod": today_iso, "changefreq": "daily", "priority": "0.9"},
+        {"loc": f"{base}/tools", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.8"},
+        {"loc": f"{base}/explainers", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.8"},
+        {"loc": f"{base}/tools/bolivar-usd-exchange-rate", "lastmod": today_iso, "changefreq": "daily", "priority": "0.7"},
+        {"loc": f"{base}/tools/ofac-venezuela-sanctions-checker", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.7"},
+        {"loc": f"{base}/tools/ofac-venezuela-general-licenses", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.7"},
+        {"loc": f"{base}/tools/caracas-safety-by-neighborhood", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.6"},
+        {"loc": f"{base}/tools/venezuela-investment-roi-calculator", "lastmod": today_iso, "changefreq": "monthly", "priority": "0.6"},
+        {"loc": f"{base}/tools/venezuela-visa-requirements", "lastmod": today_iso, "changefreq": "monthly", "priority": "0.6"},
+    ]
+
+    dynamic_urls: list[dict] = []
+    sector_set: set[str] = set()
+    try:
+        from src.models import (
+            SessionLocal,
+            init_db,
+            BlogPost,
+            ExternalArticleEntry,
+            AssemblyNewsEntry,
+            GazetteStatus,
+            LandingPage,
+        )
+
+        init_db()
+        db = SessionLocal()
+        try:
+            cutoff = _date.today() - _td(days=settings.report_lookback_days)
+
+            blog_posts = (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc())
+                .limit(500)
+                .all()
+            )
+            for p in blog_posts:
+                lastmod = (p.updated_at or p.created_at or p.published_date).strftime("%Y-%m-%d") if p.updated_at or p.created_at else p.published_date.isoformat()
+                dynamic_urls.append({
+                    "loc": f"{base}/briefing/{p.slug}",
+                    "lastmod": lastmod,
+                    "changefreq": "monthly",
+                    "priority": "0.7",
+                })
+
+            landing_pages = db.query(LandingPage).all()
+            for lp in landing_pages:
+                lastmod = (lp.last_generated_at or lp.updated_at or lp.created_at)
+                lastmod_iso = lastmod.strftime("%Y-%m-%d") if lastmod else today_iso
+                priority = "0.9" if lp.page_type == "pillar" else "0.7"
+                changefreq = "weekly" if lp.page_type == "pillar" else "monthly"
+                dynamic_urls.append({
+                    "loc": f"{base}{lp.canonical_path}",
+                    "lastmod": lastmod_iso,
+                    "changefreq": changefreq,
+                    "priority": priority,
+                })
+
+            ext_articles = (
+                db.query(ExternalArticleEntry)
+                .filter(ExternalArticleEntry.status == GazetteStatus.ANALYZED)
+                .filter(ExternalArticleEntry.published_date >= cutoff)
+                .order_by(ExternalArticleEntry.published_date.desc())
+                .limit(500)
+                .all()
+            )
+            assembly = (
+                db.query(AssemblyNewsEntry)
+                .filter(AssemblyNewsEntry.status == GazetteStatus.ANALYZED)
+                .filter(AssemblyNewsEntry.published_date >= cutoff)
+                .order_by(AssemblyNewsEntry.published_date.desc())
+                .limit(500)
+                .all()
+            )
+
+            import re as _re
+            min_score = settings.analysis_min_relevance
+            for item in list(ext_articles) + list(assembly):
+                analysis = item.analysis_json or {}
+                if analysis.get("relevance_score", 0) < min_score:
+                    continue
+                for sector in analysis.get("sectors", []) or []:
+                    sector_slug = _re.sub(r"[^a-z0-9]+", "-", str(sector).lower()).strip("-")
+                    if sector_slug:
+                        sector_set.add(sector_slug)
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("sitemap dynamic generation failed, using static only: %s", exc)
+
+    existing_urls = {u["loc"] for u in static_urls + dynamic_urls}
+    for sector_slug in sorted(sector_set):
+        url = f"{base}/sectors/{sector_slug}"
+        if url not in existing_urls:
+            static_urls.append({
+                "loc": url,
+                "lastmod": today_iso,
+                "changefreq": "weekly",
+                "priority": "0.6",
+            })
+
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>']
+    parts.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+    for u in static_urls + dynamic_urls:
+        parts.append("<url>")
+        parts.append(f"<loc>{_xml_escape(u['loc'])}</loc>")
+        parts.append(f"<lastmod>{u['lastmod']}</lastmod>")
+        parts.append(f"<changefreq>{u['changefreq']}</changefreq>")
+        parts.append(f"<priority>{u['priority']}</priority>")
+        parts.append("</url>")
+    parts.append("</urlset>")
+    return Response("".join(parts), mimetype="application/xml")
 
 
 @app.route("/health")

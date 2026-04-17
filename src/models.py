@@ -157,6 +157,85 @@ class ExternalArticleEntry(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class BlogPost(Base):
+    """
+    Long-form LLM-generated analysis post tied to a source entry.
+    One blog post per ExternalArticle or AssemblyNews row that crosses the
+    relevance threshold and has not yet been written about. Generated on
+    a separate budget so the daily report run can stay cheap.
+    """
+
+    __tablename__ = "blog_posts"
+    __table_args__ = (
+        UniqueConstraint("source_table", "source_id", name="uq_blog_source"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    source_table = Column(String(50), nullable=False, index=True)
+    source_id = Column(Integer, nullable=False, index=True)
+
+    slug = Column(String(200), nullable=False, unique=True, index=True)
+    title = Column(Text, nullable=False)
+    subtitle = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+    body_html = Column(Text, nullable=False)
+
+    primary_sector = Column(String(80), nullable=True, index=True)
+    sectors_json = Column(JSON, nullable=True)
+    keywords_json = Column(JSON, nullable=True)
+    related_slugs_json = Column(JSON, nullable=True)
+
+    word_count = Column(Integer, nullable=True)
+    reading_minutes = Column(Integer, nullable=True)
+
+    published_date = Column(Date, nullable=False, index=True)
+    canonical_source_url = Column(String(1000), nullable=True)
+
+    llm_model = Column(String(100), nullable=True)
+    llm_input_tokens = Column(Integer, nullable=True)
+    llm_output_tokens = Column(Integer, nullable=True)
+    llm_cost_usd = Column(Float, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class LandingPage(Base):
+    """
+    Evergreen landing pages — the pillar /invest-in-venezuela, the
+    sector pages, the explainers. Generated less frequently than blog
+    posts (e.g. weekly) and with the premium LLM model. Stored as
+    pre-rendered HTML so the request path stays cheap.
+    """
+
+    __tablename__ = "landing_pages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    page_key = Column(String(120), nullable=False, unique=True, index=True)
+    page_type = Column(String(40), nullable=False, index=True)
+
+    title = Column(Text, nullable=False)
+    subtitle = Column(Text, nullable=True)
+    summary = Column(Text, nullable=True)
+    body_html = Column(Text, nullable=False)
+    keywords_json = Column(JSON, nullable=True)
+    sections_json = Column(JSON, nullable=True)
+
+    sector_slug = Column(String(80), nullable=True, index=True)
+    canonical_path = Column(String(200), nullable=False)
+    word_count = Column(Integer, nullable=True)
+
+    llm_model = Column(String(120), nullable=True)
+    llm_input_tokens = Column(Integer, nullable=True)
+    llm_output_tokens = Column(Integer, nullable=True)
+    llm_cost_usd = Column(Float, nullable=True)
+
+    last_generated_at = Column(DateTime, default=datetime.utcnow, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class ScrapeLog(Base):
     """Tracks every scrape attempt for diagnostics and retry logic."""
 

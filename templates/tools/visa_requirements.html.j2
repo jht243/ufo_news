@@ -1,0 +1,112 @@
+{% extends "_base.html.j2" %}
+
+{% block head_extra %}
+<style>
+  .visa-form { display: flex; gap: 8px; margin: 20px 0; }
+  .visa-form select { flex: 1; padding: 14px 18px; border: 2px solid var(--sr-blue); border-radius: 3px; font-size: 16px; }
+  .visa-result { background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 4px; padding: 24px; margin: 20px 0; display: none; }
+  .visa-result.active { display: block; }
+  .visa-result h2 { font-family: var(--font-serif); color: var(--sr-blue-dark); font-size: 22px; margin-bottom: 8px; }
+  .badge { display:inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge.green { background: #e8f5e9; color: #1b4d1f; }
+  .badge.red { background: #fdecea; color: #7a1f1a; }
+  .field-row { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; padding: 10px 0; border-bottom: 1px dotted var(--sr-gray-light); }
+  .field-row .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sr-gray-text); padding-top: 2px; }
+  .advisory { padding: 14px 18px; border-radius: 3px; margin: 16px 0; }
+  .advisory.l4 { background: #fdecea; border-left: 4px solid var(--sr-red); }
+  .advisory.l3 { background: #fff3e0; border-left: 4px solid #f5b041; }
+  .advisory.l2 { background: #fff8e1; border-left: 4px solid #fbc02d; }
+  .advisory.l1 { background: #e8f5e9; border-left: 4px solid #2e7d32; }
+  .advisory .lvl { font-weight:700; }
+  .investor-note { background: var(--sr-gray-bg); border-left: 4px solid var(--sr-blue); padding: 14px 18px; margin: 16px 0; font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="container">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <a href="/invest-in-venezuela">Invest in Venezuela</a><span>/</span>
+    <span>Visa &amp; Entry Requirements Checker</span>
+  </nav>
+
+  <header style="margin: 16px 0 16px;">
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Travel tool · Verified against embassy &amp; state-department sources
+    </div>
+    <h1 style="font-family:var(--font-serif); font-size:32px; color:var(--sr-blue-dark); margin:8px 0 10px;">
+      Venezuela Visa &amp; Travel Requirements Checker
+    </h1>
+    <p style="font-family:var(--font-serif); font-style:italic; color:var(--sr-gray-text); font-size:17px;">
+      Pick your passport country to see whether you need a visa, the maximum
+      stay, the current US/UK travel-advisory level, and what investors should
+      know before booking a trip to Caracas.
+    </p>
+  </header>
+
+  <div class="visa-form">
+    <select id="visa-country" aria-label="Passport country">
+      <option value="">— Select your passport country —</option>
+      {% for v in visas %}
+      <option value="{{ v.code }}">{{ v.country }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  {% for v in visas %}
+  <div class="visa-result" id="r-{{ v.code }}" data-code="{{ v.code }}">
+    <h2>{{ v.country }} citizens travelling to Venezuela</h2>
+    <p>
+      {% if v.visa_required %}
+      <span class="badge red">Visa required</span>
+      {% else %}
+      <span class="badge green">Visa-free</span>
+      {% endif %}
+    </p>
+
+    <div class="field-row"><div class="lbl">Visa type</div><div>{{ v.visa_type }}</div></div>
+    <div class="field-row"><div class="lbl">Validity</div><div>{{ v.visa_validity }}</div></div>
+    <div class="field-row"><div class="lbl">Maximum stay</div><div>{{ v.tourist_stay }}</div></div>
+    <div class="field-row"><div class="lbl">Embassy / authority</div><div><a href="{{ v.embassy_url }}" rel="nofollow noopener" target="_blank">Verify with the official source &rarr;</a></div></div>
+
+    {% if v.advisory_level %}
+    <div class="advisory l{{ v.advisory_level }}">
+      <div><span class="lvl">Travel advisory level {{ v.advisory_level }}</span> — {{ v.advisory_summary }}</div>
+      <div style="font-size:13px; margin-top:6px;"><a href="{{ v.advisory_url }}" rel="nofollow noopener" target="_blank" style="color: inherit;">Read the full advisory &rarr;</a></div>
+    </div>
+    {% endif %}
+
+    <div class="investor-note"><strong>For investors:</strong> {{ v.investor_note }}</div>
+  </div>
+  {% endfor %}
+
+  <p style="font-size:12px; color:var(--sr-gray-text); margin: 24px 0;">
+    All entries verified against the official embassy network and home-country
+    foreign-affairs ministry sources. Policy can change quickly — always
+    re-verify with the linked official source within 14 days of travel.
+    See related: <a href="/invest-in-venezuela">how to invest in Venezuela</a> ·
+    <a href="/sectors/tourism">Venezuela tourism sector</a>.
+  </p>
+
+  <script>
+    (function() {
+      var sel = document.getElementById('visa-country');
+      var cards = document.querySelectorAll('.visa-result');
+      sel.addEventListener('change', function() {
+        cards.forEach(function(c) { c.classList.remove('active'); });
+        if (sel.value) {
+          var t = document.getElementById('r-' + sel.value);
+          if (t) {
+            t.classList.add('active');
+            t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+      });
+      var hash = (location.hash || '').replace('#', '');
+      if (hash) { sel.value = hash; sel.dispatchEvent(new Event('change')); }
+    })();
+  </script>
+
+</section>
+{% endblock %}

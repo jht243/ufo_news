@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -121,10 +121,14 @@ def generate_report(output_path: Path | None = None) -> Path:
         )
 
         entries = _build_entries(ext_articles, assembly_news)
+        _attach_blog_links(db, entries)
         ticker_items = _build_ticker(db)
         news_items = _build_news_sidebar(entries)
         calendar_events = _build_calendar(ext_articles, assembly_news)
         climate = _build_climate()
+        generated_dt = datetime.utcnow()
+        seo = _build_seo(entries, generated_dt)
+        jsonld = _build_jsonld(entries, seo, generated_dt)
 
         template_dir = Path(__file__).parent.parent / "templates"
         env = Environment(
@@ -141,7 +145,9 @@ def generate_report(output_path: Path | None = None) -> Path:
             climate=climate,
             all_sectors=SECTOR_OPTIONS,
             current_year=date.today().year,
-            generated_at=datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC"),
+            generated_at=generated_dt.strftime("%Y-%m-%d %H:%M UTC"),
+            seo=seo,
+            jsonld=jsonld,
         )
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -217,13 +223,24 @@ def _build_entries(ext_articles, assembly_news) -> list[dict]:
         is_new = (date.today() - item.published_date).days <= 3
 
         safe_id = re.sub(r"[^a-z0-9]", "-", headline.lower())[:40].strip("-")
+        slug_base = re.sub(r"[^a-z0-9]+", "-", headline.lower()).strip("-")[:80] or "briefing"
+        slug = f"{slug_base}-{item.published_date.strftime('%Y%m%d')}-{item.id}"
+
+        published_iso = datetime.combine(
+            item.published_date, datetime.min.time(), tzinfo=timezone.utc
+        ).isoformat()
 
         entries.append({
             "id": safe_id,
+            "slug": slug,
+            "db_id": item.id,
+            "item_type": item_type,
             "headline": item.headline,
             "headline_short": headline,
             "date_display": item.published_date.strftime("%B %d, %Y"),
             "published_date": item.published_date,
+            "published_iso": published_iso,
+            "modified_iso": published_iso,
             "source_url": item.source_url,
             "source_display": source_display,
             "sectors": sectors,
@@ -693,4 +710,246 @@ def _build_climate() -> dict:
             "US State Dept travel advisory level (live scrape), GDELT global news sentiment, OFAC SDN list monitoring, "
             "UNCTAD FDI stock ($30.5B), Amnesty Law implementation data, and legislative pipeline analysis. QoQ comparison based on Q4 2025 baseline."
         ),
+    }
+
+
+def _attach_blog_links(db, entries: list[dict]) -> None:
+    """
+    For each entry whose underlying source row has a published BlogPost,
+    attach `blog_slug` so the template can link to /briefing/{blog_slug}.
+    Entries without a blog post get blog_slug=None and the template hides
+    the 'Read full analysis' link.
+    """
+    try:
+        from src.models import BlogPost
+    except Exception:
+        for e in entries:
+            e.setdefault("blog_slug", None)
+        return
+
+    keys = [
+        ("external_articles" if e.get("item_type") == "external" else "assembly_news",
+         e.get("db_id"))
+        for e in entries
+        if e.get("db_id") is not None
+    ]
+    if not keys:
+        for e in entries:
+            e.setdefault("blog_slug", None)
+        return
+
+    rows = db.query(BlogPost.source_table, BlogPost.source_id, BlogPost.slug).all()
+    lookup = {(r[0], r[1]): r[2] for r in rows}
+    for e in entries:
+        table = "external_articles" if e.get("item_type") == "external" else "assembly_news"
+        e["blog_slug"] = lookup.get((table, e.get("db_id")))
+
+
+def _build_jsonld(entries: list[dict], seo: dict, generated_at: datetime) -> str:
+    """
+    Build a JSON-LD blob containing Organization, WebSite, BreadcrumbList,
+    ItemList (latest briefings), and NewsArticle (the lead entry).
+    Returned as a JSON-encoded string ready to drop into a single
+    <script type="application/ld+json"> tag.
+    """
+    import json as _json
+
+    base = settings.site_url.rstrip("/")
+    iso_now = generated_at.replace(tzinfo=timezone.utc).isoformat()
+
+    organization = {
+        "@type": "Organization",
+        "@id": f"{base}/#organization",
+        "name": settings.site_name,
+        "url": f"{base}/",
+        "logo": {
+            "@type": "ImageObject",
+            "url": f"{base}/static/og-image.png",
+            "width": 1200,
+            "height": 630,
+        },
+    }
+
+    website = {
+        "@type": "WebSite",
+        "@id": f"{base}/#website",
+        "url": f"{base}/",
+        "name": settings.site_name,
+        "description": seo.get("description", ""),
+        "inLanguage": "en-US",
+        "publisher": {"@id": f"{base}/#organization"},
+    }
+
+    breadcrumbs = {
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+            {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "Home",
+                "item": f"{base}/",
+            },
+            {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Daily Briefing",
+                "item": f"{base}/",
+            },
+        ],
+    }
+
+    item_list_elements = []
+    for idx, entry in enumerate(entries[:20], start=1):
+        blog_slug = entry.get("blog_slug")
+        if blog_slug:
+            url_target = f"{base}/briefing/{blog_slug}"
+        else:
+            url_target = f"{base}/#dev-{entry.get('id', '')}"
+        headline = entry.get("headline_short") or entry.get("headline") or ""
+        item_list_elements.append({
+            "@type": "ListItem",
+            "position": idx,
+            "url": url_target,
+            "name": headline,
+        })
+    item_list = {
+        "@type": "ItemList",
+        "name": "Latest Venezuelan investment & sanctions briefings",
+        "itemListOrder": "https://schema.org/ItemListOrderDescending",
+        "numberOfItems": len(item_list_elements),
+        "itemListElement": item_list_elements,
+    }
+
+    graph: list[dict] = [organization, website, breadcrumbs, item_list]
+
+    if entries:
+        lead = entries[0]
+        blog_slug = lead.get("blog_slug")
+        article_url = f"{base}/briefing/{blog_slug}" if blog_slug else f"{base}/"
+        article_headline = (
+            lead.get("headline_short") or lead.get("headline") or seo.get("title", "")
+        )
+        article_body = (
+            lead.get("takeaway_plain")
+            or lead.get("summary")
+            or seo.get("description", "")
+        )
+        published = lead.get("published_iso") or iso_now
+        modified = lead.get("modified_iso") or published
+
+        keywords = seo.get("keywords", "")
+        if isinstance(keywords, str):
+            keywords_list = [k.strip() for k in keywords.split(",") if k.strip()]
+        else:
+            keywords_list = list(keywords) if keywords else []
+
+        news_article = {
+            "@type": "NewsArticle",
+            "@id": f"{article_url}#article",
+            "mainEntityOfPage": {
+                "@type": "WebPage",
+                "@id": article_url,
+            },
+            "headline": article_headline[:110],
+            "description": (article_body[:300] + ("…" if len(article_body) > 300 else "")),
+            "image": [seo.get("og_image", f"{base}/static/og-image.png")],
+            "datePublished": published,
+            "dateModified": modified,
+            "author": {
+                "@type": "Organization",
+                "name": settings.site_name,
+                "url": f"{base}/",
+            },
+            "publisher": {"@id": f"{base}/#organization"},
+            "keywords": keywords_list,
+            "isAccessibleForFree": True,
+            "articleSection": "Venezuela investment briefing",
+            "inLanguage": "en-US",
+        }
+        graph.append(news_article)
+
+    payload = {"@context": "https://schema.org", "@graph": graph}
+    return _json.dumps(payload, ensure_ascii=False)
+
+
+def _build_seo(entries: list[dict], generated_at: datetime) -> dict:
+    """
+    Build the SEO context (meta tags, Open Graph, Twitter, canonical) for
+    the home report page. The page is news-driven, so the title and
+    description rotate with whatever's freshest.
+    """
+    base = settings.site_url.rstrip("/")
+
+    sector_counter: dict[str, int] = {}
+    for entry in entries[:25]:
+        for sector in entry.get("sectors", []) or []:
+            sector_counter[sector] = sector_counter.get(sector, 0) + 1
+    top_sectors = [
+        s for s, _ in sorted(sector_counter.items(), key=lambda kv: kv[1], reverse=True)
+    ][:3]
+
+    if top_sectors:
+        sector_phrase = ", ".join(top_sectors)
+        title = (
+            f"Invest in Venezuela: {sector_phrase} & sanctions briefing "
+            f"— {generated_at.strftime('%b %d, %Y')}"
+        )
+    else:
+        title = (
+            "Invest in Venezuela: Daily sanctions, regulatory & investment briefing "
+            f"— {generated_at.strftime('%b %d, %Y')}"
+        )
+
+    if entries:
+        first = entries[0]
+        lead = first.get("takeaway_plain") or first.get("summary") or ""
+        lead = " ".join(str(lead).split())
+        if len(lead) > 220:
+            lead = lead[:217].rsplit(" ", 1)[0] + "…"
+        description = (
+            f"Daily Venezuelan investment briefing — {lead} "
+            "Tracking OFAC sanctions, Asamblea Nacional, Gaceta Oficial, BCV rates."
+        )
+    else:
+        description = (
+            "Daily Venezuelan investment & sanctions briefing for global investors. "
+            "Real-time monitoring of OFAC SDN, US Federal Register general licenses, "
+            "Asamblea Nacional legislation, Gaceta Oficial decrees, BCV exchange rates, "
+            "and US State Department travel advisories."
+        )
+
+    keywords = [
+        "invest in Venezuela",
+        "Venezuelan investment opportunities",
+        "OFAC Venezuela sanctions",
+        "invest in Caracas",
+        "Venezuela general license",
+        "Venezuela mining law",
+        "Asamblea Nacional",
+        "PDVSA Chevron license",
+        "Venezuela emerging markets",
+        "Bolivar exchange rate",
+    ]
+    for sector in top_sectors:
+        keywords.append(f"Venezuela {sector.lower()} sector")
+
+    canonical = f"{base}/"
+    og_image = f"{base}/static/og-image.png"
+
+    return {
+        "title": title,
+        "description": description,
+        "keywords": ", ".join(keywords),
+        "canonical": canonical,
+        "site_name": settings.site_name,
+        "site_url": base,
+        "locale": settings.site_locale,
+        "og_image": og_image,
+        "og_image_width": 1200,
+        "og_image_height": 630,
+        "og_type": "website",
+        "twitter_card": "summary_large_image",
+        "published_iso": generated_at.replace(tzinfo=timezone.utc).isoformat(),
+        "modified_iso": generated_at.replace(tzinfo=timezone.utc).isoformat(),
+        "top_sectors": top_sectors,
     }

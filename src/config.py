@@ -45,6 +45,16 @@ class Settings(BaseSettings):
     llm_input_price_per_mtok: float = 2.50
     llm_output_price_per_mtok: float = 10.00
 
+    # Premium model — used ONLY for evergreen, high-traffic landing
+    # content (pillar page, sector landing pages, evergreen explainers).
+    # Keep gpt-4o for the daily news churn (analyzer + blog_generator)
+    # because that runs hundreds of times/day; reserve the premium model
+    # for the ~10 pages that need to read like a senior analyst wrote
+    # them. Override via OPENAI_PREMIUM_MODEL env var.
+    openai_premium_model: str = "gpt-5.2"
+    llm_premium_input_price_per_mtok: float = 5.00
+    llm_premium_output_price_per_mtok: float = 15.00
+
     # Newsletter
     newsletter_provider: str = "console"
     newsletter_from_email: str = "briefing@venezuelanbusiness.net"
@@ -61,6 +71,23 @@ class Settings(BaseSettings):
 
     # Server
     server_port: int = 8080
+
+    # SEO / canonical URL — base URL of the deployed site. Used for
+    # canonical <link>, sitemap entries, JSON-LD identifiers, and OG
+    # share URLs. Override via SITE_URL env var when a custom domain
+    # is added (Tier 4).
+    site_url: str = "https://venezuela-investment-journal.onrender.com"
+    site_name: str = "Venezuelan Business Network"
+    site_owner_org: str = "Venezuelan Business Network"
+    site_locale: str = "en_US"
+
+    # Long-form blog post generator. Each post is roughly 700-900 words and
+    # uses ~2-3k completion tokens, so each call costs ~$0.04. The budget
+    # caps total post generations per pipeline run.
+    blog_gen_budget_per_run: int = 6
+    blog_gen_min_relevance: int = 5
+    blog_gen_lookback_days: int = 14
+    blog_gen_max_words: int = 900
 
 
 settings = Settings()

@@ -1,0 +1,69 @@
+{% extends "_base.html.j2" %}
+
+{% block content %}
+<article class="container">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <span>{{ page.title }}</span>
+  </nav>
+
+  <header>
+    {% if page.page_type == 'sector' %}
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Sector landing page
+    </div>
+    {% else %}
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700;">
+      Investor guide
+    </div>
+    {% endif %}
+    <h1>{{ page.title }}</h1>
+    {% if page.subtitle %}<p class="subtitle">{{ page.subtitle }}</p>{% endif %}
+    <div class="meta">
+      <span><strong>Last updated</strong> {{ page.last_generated_at.strftime('%B %d, %Y') }}</span>
+      {% if page.word_count %}<span>{{ page.word_count }}-word guide</span>{% endif %}
+      <span><strong>Editor</strong> Venezuelan Business Network</span>
+    </div>
+  </header>
+
+  {% if page.sections_json and page.sections_json.table_of_contents %}
+  <aside class="takeaways" aria-label="On this page">
+    <h3>On this page</h3>
+    <ul>
+      {% for s in page.sections_json.table_of_contents %}
+      <li><a href="#{{ s.anchor }}">{{ s.label }}</a></li>
+      {% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+
+  {% if page.sections_json and page.sections_json.key_takeaways %}
+  <aside class="takeaways" aria-label="Key takeaways" style="border-left-color:#cc0000;">
+    <h3>Key takeaways</h3>
+    <ul>
+      {% for t in page.sections_json.key_takeaways %}<li>{{ t }}</li>{% endfor %}
+    </ul>
+  </aside>
+  {% endif %}
+
+  <div class="body">
+    {{ page.body_html | safe }}
+  </div>
+
+  {% if recent_briefings %}
+  <section class="related" aria-label="Latest briefings">
+    <h3>Latest related briefings</h3>
+    <ul>
+      {% for r in recent_briefings %}
+      <li>
+        <a href="/briefing/{{ r.slug }}">{{ r.title }}</a>
+        <small>{{ r.published_date.strftime('%b %d, %Y') }}</small>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+</article>
+{% endblock %}
