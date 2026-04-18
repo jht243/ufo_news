@@ -44,9 +44,12 @@ TRAVEL_ADVISORY_SUMMARY = {
         "the Wrongful Detention indicator while keeping Level 4 status on "
         "the border states of Apure, Barinas, Táchira and Zulia. Crime, "
         "civil unrest, poor health infrastructure and the risk of arbitrary "
-        "enforcement remain elevated. The US has no embassy presence in "
-        "Caracas; emergency consular services for US citizens are handled "
-        "via the US Embassy in Bogotá, Colombia."
+        "enforcement remain elevated. The US Embassy in Caracas formally "
+        "reopened on March 30, 2026 after a seven-year closure; emergency "
+        "consular support for US citizens is now available locally, while "
+        "routine passport and visa services continue to be handled by the "
+        "Venezuela Affairs Unit at US Embassy Bogotá until the consular "
+        "section reopens."
     ),
     "primary_url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/venezuela-travel-advisory.html",
 }
@@ -146,17 +149,20 @@ EMBASSY_REGISTRATION_PROGRAMS: list[dict] = [
 EMBASSIES: list[dict] = [
     {
         "country": "United States",
-        "city": "Bogotá, Colombia (handles Venezuela)",
-        "address": "Carrera 45 # 24B-27, Bogotá",
-        "phone": "+57 1 275-2000",
-        "after_hours": "+57 1 275-4021",
+        "city": "Caracas (reopened March 30, 2026)",
+        "address": "Calle F con Calle Suapure, Urb. Colinas de Valle Arriba, Caracas",
+        "phone": "+1 202 501-4444 (international)",
+        "after_hours": "1-888-407-4747 (US/Canada toll-free) · +1 202 501-4444 (intl)",
         "email": "ACSBogota@state.gov",
-        "website": "https://co.usembassy.gov/",
+        "website": "https://ve.usembassy.gov/",
         "notes": (
-            "The US Embassy in Caracas suspended operations in March 2019. "
-            "All emergency services for US citizens in Venezuela are handled "
-            "by the US Embassy in Bogotá, Colombia. Routine passport and "
-            "visa services are not provided in-country."
+            "The US Embassy in Caracas formally resumed operations on "
+            "March 30, 2026 after a seven-year closure, led by Chargé "
+            "d'Affaires Laura F. Dogu. The consular section is still "
+            "under restoration — routine passport and visa services are "
+            "not yet provided in Caracas and continue to be handled by the "
+            "Venezuela Affairs Unit at US Embassy Bogotá. Emergency consular "
+            "support for US citizens in Venezuela is now available locally."
         ),
     },
     {

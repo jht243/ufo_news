@@ -1505,10 +1505,16 @@ def travel_page():
             {
                 "q": "Is there a US embassy in Caracas?",
                 "a": (
-                    "No. The US Embassy in Caracas suspended operations in "
-                    "March 2019. All emergency consular services for US "
-                    "citizens in Venezuela are handled by the US Embassy in "
-                    "Bogotá, Colombia (+57 1 275-2000)."
+                    "Yes — the US Embassy in Caracas formally reopened on "
+                    "March 30, 2026 after a seven-year closure, led by "
+                    "Chargé d'Affaires Laura F. Dogu, at its original "
+                    "location in Colinas de Valle Arriba. Emergency "
+                    "consular support is available locally; however, the "
+                    "consular section is still under restoration so routine "
+                    "passport and visa services continue to be handled by "
+                    "the Venezuela Affairs Unit at US Embassy Bogotá. "
+                    "Emergency line for US citizens: 1-888-407-4747 toll-free "
+                    "(US/Canada) or +1 202 501-4444 from outside the US."
                 ),
             },
             {

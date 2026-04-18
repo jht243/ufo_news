@@ -45,7 +45,7 @@ VISA_REQUIREMENTS: list[dict] = [
         "advisory_level": 3,
         "advisory_summary": "Reconsider Travel — risk of crime, kidnapping, terrorism, and poor health infrastructure. Do Not Travel (Level 4) still applies to the Colombia border region, Amazonas, Apure, Aragua (outside Maracay), rural Bolívar, Guárico, and Táchira states.",
         "advisory_url": "https://travel.state.gov/content/travel/en/traveladvisories/traveladvisories/venezuela-travel-advisory.html",
-        "investor_note": "In January 2026 the State Department began a phased resumption of US embassy operations in Venezuela, but routine consular services remain suspended and most services are still provided through the US Embassy in Bogotá. Plan in-country meetings via local counsel and avoid the seven Level-4 regions.",
+        "investor_note": "The US Embassy in Caracas formally reopened on March 30, 2026 after a seven-year closure, with Chargé d'Affaires Laura F. Dogu leading the mission. The consular section is still under restoration, so routine passport and visa services continue to be handled by the Venezuela Affairs Unit at US Embassy Bogotá. Plan in-country meetings via local counsel and avoid the four Level-4 border states.",
     },
     {
         "country": "United Kingdom",

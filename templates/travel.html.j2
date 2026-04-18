@@ -76,6 +76,18 @@
   .register-grid .country { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--sr-gray-text); margin-bottom: 2px; }
   .register-grid .program { display: block; font-family: var(--font-serif); font-weight: 700; font-size: 15px; color: var(--sr-blue-dark); margin-bottom: 4px; }
   .register-grid .blurb { display: block; font-size: 12.5px; color: var(--sr-gray-text); line-height: 1.5; }
+
+  /* "Show top N" collapsible sections — items beyond data-limit are hidden
+     until the user clicks "See all". Limits supported: 2, 3, 4. */
+  .section-collapsed[data-limit="2"] > :nth-child(n+3),
+  .section-collapsed[data-limit="3"] > :nth-child(n+4),
+  .section-collapsed[data-limit="4"] > :nth-child(n+5) { display: none; }
+  .see-more-row { margin: 4px 0 8px; }
+  .see-more-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; background: var(--white); border: 1px solid var(--sr-blue); border-radius: 999px; color: var(--sr-blue); font-size: 13px; font-weight: 600; cursor: pointer; font-family: var(--font-sans); transition: background 0.15s, color 0.15s, transform 0.1s; }
+  .see-more-btn:hover { background: var(--sr-blue); color: var(--white); }
+  .see-more-btn:active { transform: scale(0.98); }
+  .see-more-btn[hidden] { display: none; }
+  .see-more-btn .chev { transition: transform 0.2s ease; }
 </style>
 {% endblock %}
 
@@ -123,7 +135,7 @@
       throughout the trip. This is the single most important pre-departure
       action after booking your flight, and the one most travellers skip.
     </p>
-    <div class="register-grid">
+    <div class="register-grid section-collapsed" data-limit="3" id="reg-grid">
       {% for r in registration_programs %}
       <a href="{{ r.url }}" rel="nofollow noopener" target="_blank">
         <span class="country">{{ r.country }}</span>
@@ -132,6 +144,13 @@
       </a>
       {% endfor %}
     </div>
+    {% if registration_programs|length > 3 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="reg-grid">
+        See all {{ registration_programs|length }} country programs <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
     <p class="fine">
       Other nationalities: ask your foreign ministry's consular section
       whether they operate a traveller-registration system &mdash; most
@@ -175,7 +194,7 @@
       ministry's traveller-registration system (US: STEP; UK: FCDO; Canada:
       ROCA). All numbers below are in international dialling format.
     </p>
-    <div class="card-grid cols-2">
+    <div class="card-grid cols-2 section-collapsed" data-limit="2" id="embassies-grid">
       {% for e in embassies %}
       <div class="card">
         <div class="meta">{{ e.country }}</div>
@@ -189,6 +208,13 @@
       </div>
       {% endfor %}
     </div>
+    {% if embassies|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="embassies-grid">
+        See all {{ embassies|length }} embassies <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -200,7 +226,7 @@
       Altamira, El Rosal, Chuao). Their concierges arrange airport transfers,
       which is the single most important logistics call you make on this trip.
     </p>
-    <div class="card-grid cols-2">
+    <div class="card-grid cols-2 section-collapsed" data-limit="4" id="hotels-grid">
       {% for h in hotels %}
       <div class="card">
         <div class="meta">{{ h.tier }} · {{ h.neighborhood }}</div>
@@ -212,6 +238,13 @@
       </div>
       {% endfor %}
     </div>
+    {% if hotels|length > 4 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="hotels-grid">
+        See all {{ hotels|length }} hotels <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -223,7 +256,7 @@
       is the norm. We deliberately do not list late-night venues outside
       these zones.
     </p>
-    <div class="card-grid cols-2">
+    <div class="card-grid cols-2 section-collapsed" data-limit="4" id="restaurants-grid">
       {% for r in restaurants %}
       <div class="card">
         <div class="meta">{{ r.cuisine }} · {{ r.neighborhood }}</div>
@@ -234,6 +267,13 @@
       </div>
       {% endfor %}
     </div>
+    {% if restaurants|length > 4 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="restaurants-grid">
+        See all {{ restaurants|length }} restaurants <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -244,7 +284,7 @@
       around the private clinics below. Confirm direct billing with your
       travel-medical insurer (e.g. International SOS) before you fly.
     </p>
-    <div class="card-grid cols-2">
+    <div class="card-grid cols-2 section-collapsed" data-limit="2" id="medical-grid">
       {% for m in medical %}
       <div class="card">
         <div class="meta">{{ m.type }} · {{ m.neighborhood }}</div>
@@ -255,6 +295,13 @@
       </div>
       {% endfor %}
     </div>
+    {% if medical|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="medical-grid">
+        See all {{ medical|length }} hospitals &amp; medical providers <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -266,7 +313,7 @@
       The default option for almost every business traveller is to book the
       airport transfer through the hotel's reservation desk before flying.
     </p>
-    <div class="card-grid cols-2">
+    <div class="card-grid cols-2 section-collapsed" data-limit="2" id="transport-grid">
       {% for t in transport %}
       <div class="card">
         <div class="meta">{{ t.type }}</div>
@@ -277,6 +324,13 @@
       </div>
       {% endfor %}
     </div>
+    {% if transport|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="transport-grid">
+        See all {{ transport|length }} transport options <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -289,7 +343,7 @@
       contracting a local protective-services vendor cold. They maintain the
       vetted local relationships you need.
     </p>
-    <div class="card-grid cols-2">
+    <div class="card-grid cols-2 section-collapsed" data-limit="2" id="security-grid">
       {% for s in security %}
       <div class="card">
         <div class="meta">{{ s.type }}</div>
@@ -300,6 +354,13 @@
       </div>
       {% endfor %}
     </div>
+    {% if security|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="security-grid">
+        See all {{ security|length }} security firms <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -309,7 +370,7 @@
       Cellular roaming on US carriers is unreliable; plan around an eSIM
       activated before you board, plus a VPN configured in advance.
     </p>
-    <ul class="checklist">
+    <ul class="checklist section-collapsed" data-limit="2" id="comms-list">
       {% for c in communications %}
       <li>
         <span class="marker"></span>
@@ -320,6 +381,13 @@
       </li>
       {% endfor %}
     </ul>
+    {% if communications|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="comms-list">
+        See all {{ communications|length }} communications tips <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -329,7 +397,7 @@
       Caracas runs on US dollar cash and informal Zelle transfers. Bring
       small denominations and don't rely on ATMs.
     </p>
-    <ul class="checklist">
+    <ul class="checklist section-collapsed" data-limit="2" id="money-list">
       {% for m in money %}
       <li>
         <span class="marker"></span>
@@ -342,6 +410,13 @@
       </li>
       {% endfor %}
     </ul>
+    {% if money|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="money-list">
+        See all {{ money|length }} money &amp; banking tips <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -350,7 +425,7 @@
     <p class="sec-lead">
       Work this list end-to-end at least two weeks before departure.
     </p>
-    <ul class="checklist">
+    <ul class="checklist section-collapsed" data-limit="2" id="pretrip-list">
       {% for item in pre_trip %}
       <li>
         <span class="marker"></span>
@@ -371,6 +446,13 @@
       </li>
       {% endfor %}
     </ul>
+    {% if pre_trip|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="pretrip-list">
+        See all {{ pre_trip|length }} pre-departure items <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -380,7 +462,7 @@
       These are the on-the-ground rules that experienced visitors,
       diplomats and journalists treat as non-negotiable.
     </p>
-    <ul class="checklist">
+    <ul class="checklist section-collapsed" data-limit="2" id="safety-list">
       {% for r in safety %}
       <li>
         <span class="marker warn"></span>
@@ -391,6 +473,13 @@
       </li>
       {% endfor %}
     </ul>
+    {% if safety|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="safety-list">
+        See all {{ safety|length }} safety rules <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   {# ======================================================================= #}
@@ -405,7 +494,7 @@
       <thead>
         <tr><th style="width:65%;">Service</th><th>Number</th></tr>
       </thead>
-      <tbody>
+      <tbody class="section-collapsed" data-limit="2" id="emergency-tbody">
         {% for e in emergency %}
         <tr>
           <td>{{ e.label }}</td>
@@ -414,6 +503,13 @@
         {% endfor %}
       </tbody>
     </table>
+    {% if emergency|length > 2 %}
+    <div class="see-more-row">
+      <button type="button" class="see-more-btn" data-target="emergency-tbody">
+        See all {{ emergency|length }} emergency numbers <span class="chev">&darr;</span>
+      </button>
+    </div>
+    {% endif %}
   </section>
 
   <div style="margin-top: 40px; padding: 18px; background: var(--sr-gray-bg); border-radius: 4px;">
@@ -433,4 +529,36 @@
   </p>
 
 </section>
+
+<script>
+// "See more" expanders. Clicking a .see-more-btn removes the
+// .section-collapsed class from its target container, revealing all
+// hidden items, and hides the button itself.
+(function initSeeMore() {
+  document.querySelectorAll('.see-more-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = document.getElementById(btn.getAttribute('data-target'));
+      if (!target) return;
+      target.classList.remove('section-collapsed');
+      btn.setAttribute('hidden', '');
+    });
+  });
+  // Auto-expand a section if the user lands via an anchor link inside it,
+  // so e.g. /travel#safety doesn't strand them on a 2-item view.
+  function expandFromHash() {
+    var hash = (window.location.hash || '').replace(/^#/, '');
+    if (!hash) return;
+    var target = document.getElementById(hash);
+    if (!target) return;
+    target.querySelectorAll('.section-collapsed').forEach(function(el) {
+      el.classList.remove('section-collapsed');
+    });
+    target.querySelectorAll('.see-more-btn').forEach(function(btn) {
+      btn.setAttribute('hidden', '');
+    });
+  }
+  expandFromHash();
+  window.addEventListener('hashchange', expandFromHash);
+})();
+</script>
 {% endblock %}
