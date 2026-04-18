@@ -14,7 +14,7 @@ Authoritative / source-of-truth references used to compile this dataset:
 - UK FCDO Foreign Travel Advice for Venezuela
   https://www.gov.uk/foreign-travel-advice/venezuela
 - MPPRE (Cancillería) embassy directory
-  http://mppre.gob.ve/embajadas-y-consulados/
+  https://mppre.gob.ve/
 - Embassy phone & address records published on each mission's official
   website (cross-checked against EmbassyPages and IATA timatic records).
 - Public listings from the major hotel groups (Marriott, IHG, Pestana,
@@ -97,7 +97,7 @@ EMBASSY_REGISTRATION_PROGRAMS: list[dict] = [
         "country": "Germany",
         "program": "Elefand",
         "long_name": "Elektronische Erfassung von Deutschen im Ausland",
-        "url": "https://elefand.diplo.de/",
+        "url": "https://krisenvorsorgeliste.diplo.de/",
         "blurb": "Auswärtiges Amt's crisis-preparedness register for German citizens abroad.",
     },
     {
@@ -118,14 +118,14 @@ EMBASSY_REGISTRATION_PROGRAMS: list[dict] = [
         "country": "Spain",
         "program": "Registro de Viajeros",
         "long_name": "Spanish consular traveller register",
-        "url": "https://www.exteriores.gob.es/es/ServiciosAlCiudadano/Paginas/Registro-Viajeros.aspx",
+        "url": "https://registroviajeros.exteriores.gob.es/",
         "blurb": "MAEC's free pre-travel registration for Spanish nationals.",
     },
     {
         "country": "Netherlands",
         "program": "BZ Information Service",
         "long_name": "Travel advice subscription + 24/7 contact centre",
-        "url": "https://www.netherlandsworldwide.nl/travel-advice/venezuela",
+        "url": "https://www.nederlandwereldwijd.nl/reisadvies/venezuela",
         "blurb": "Subscribe to Venezuela travel-advice updates; BZ's 24/7 contact centre (+31 247 247 247) is the Dutch consular crisis line.",
     },
     {
@@ -172,7 +172,7 @@ EMBASSIES: list[dict] = [
         "phone": "+58 212 263-8411",
         "after_hours": "+58 212 263-8411 (24h emergency line)",
         "email": "consularenquiries.caracas@fcdo.gov.uk",
-        "website": "https://www.gov.uk/world/organisations/british-embassy-caracas",
+        "website": "https://www.gov.uk/world/organisations/british-embassy-venezuela",
         "notes": "Active mission; consular services for UK nationals.",
     },
     {
@@ -222,7 +222,7 @@ EMBASSIES: list[dict] = [
         "phone": "+58 212 600-3000",
         "after_hours": "+1 613 996-8885 (Ottawa Emergency Watch)",
         "email": "crcas@international.gc.ca",
-        "website": "https://www.international.gc.ca/country-pays/venezuela/caracas.aspx",
+        "website": "https://www.international.gc.ca/country-pays/venezuela/index.aspx?lang=eng",
         "notes": "Operating with reduced services; emergency consular help also via Ottawa Emergency Watch and Response Centre 24/7.",
     },
     {
@@ -262,7 +262,7 @@ EMBASSIES: list[dict] = [
         "phone": "+58 212 276-9300",
         "after_hours": "+31 247 247 247 (24/7 BZ Contact Centre, Netherlands)",
         "email": "car@minbuza.nl",
-        "website": "https://www.netherlandsworldwide.nl/countries/venezuela",
+        "website": "https://www.netherlandsandyou.nl/web/venezuela-en",
         "notes": "Active; also serves Dutch citizens transiting from Aruba/Curaçao/Bonaire.",
     },
     {
@@ -429,7 +429,7 @@ RESTAURANTS: list[dict] = [
         "cuisine": "Casual American / burgers",
         "neighborhood": "Multiple branches",
         "phone": "+58 212 941-0100",
-        "url": "https://www.avilaburger.com/",
+        "url": "https://www.instagram.com/avilaburger/",
         "notes": "Reliable casual chain with safer-zone locations (Las Mercedes, Los Palos Grandes).",
     },
 ]
@@ -553,7 +553,7 @@ SECURITY_FIRMS: list[dict] = [
     {
         "name": "Control Risks",
         "type": "Corporate security advisory",
-        "url": "https://www.controlrisks.com/our-thinking/insights/by-region/the-americas/venezuela",
+        "url": "https://www.controlrisks.com/",
         "phone": "+1 202 449-3327 (Washington DC office)",
         "notes": (
             "Global political-risk and security consultancy with active Venezuela "
@@ -584,7 +584,7 @@ SECURITY_FIRMS: list[dict] = [
     {
         "name": "Pinkerton",
         "type": "Security advisory & protective services",
-        "url": "https://pinkerton.com/our-insights/regions/latin-america",
+        "url": "https://pinkerton.com/tags/latin-america",
         "phone": "+1 800 724-1616",
         "notes": (
             "Operates across Latin America; can arrange local protective-services "

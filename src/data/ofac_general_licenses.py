@@ -32,7 +32,7 @@ GENERAL_LICENSES: list[dict] = [
         "summary": "Permits Chevron, Halliburton, Schlumberger, Baker Hughes, and Weatherford to engage in essential maintenance operations involving PdVSA, with strict reporting requirements.",
         "expires": "Periodically renewed (typically 6-12 month terms)",
         "scope": ["energy", "oil-gas", "PDVSA"],
-        "ofac_url": "https://ofac.treasury.gov/recent-actions/20240126",
+        "ofac_url": "https://ofac.treasury.gov/sanctions-programs-and-country-information/venezuela-related-sanctions",
         "context": "Underpins the limited continued presence of US oilfield service majors in Venezuela. Each renewal cycle is closely watched.",
     },
     {
@@ -86,7 +86,7 @@ GENERAL_LICENSES: list[dict] = [
         "summary": "Permits transactions in certain Venezuelan securities (debt or equity) that were issued prior to specified Executive Orders, subject to secondary market trading conditions.",
         "expires": "Periodically reissued",
         "scope": ["debt", "securities", "secondary-market"],
-        "ofac_url": "https://ofac.treasury.gov/media/932456/download?inline",
+        "ofac_url": "https://ofac.treasury.gov/sanctions-programs-and-country-information/venezuela-related-sanctions",
         "context": "Foundational GL for distressed-debt secondary trading. Essential reading for any fund holding legacy Venezuelan paper.",
     },
     {
@@ -95,7 +95,7 @@ GENERAL_LICENSES: list[dict] = [
         "summary": "Permits ongoing administrative transactions necessary for the operation of Nynas, a Swedish refining group historically linked to PdVSA.",
         "expires": "Periodically reissued",
         "scope": ["energy", "Europe", "wind-down"],
-        "ofac_url": "https://ofac.treasury.gov/media/931231/download?inline",
+        "ofac_url": "https://ofac.treasury.gov/sanctions-programs-and-country-information/venezuela-related-sanctions",
         "context": "The European compliance reference point — shows how OFAC treats EU entities with PdVSA legacy ownership.",
     },
     {
@@ -104,7 +104,7 @@ GENERAL_LICENSES: list[dict] = [
         "summary": "Permits transactions involving CITGO Petroleum, CITGO Holding, and PDV Holding, which are blocked by virtue of their PdVSA ownership.",
         "expires": "Periodically reissued",
         "scope": ["energy", "CITGO", "downstream"],
-        "ofac_url": "https://ofac.treasury.gov/media/931226/download?inline",
+        "ofac_url": "https://ofac.treasury.gov/sanctions-programs-and-country-information/venezuela-related-sanctions",
         "context": "Why CITGO can keep operating in Texas and Louisiana refineries despite its parent being on the SDN list. Watch for any GL 7 modification — it directly affects the CITGO valuation in any restructuring scenario.",
     },
 ]

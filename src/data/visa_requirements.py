@@ -132,10 +132,10 @@ VISA_REQUIREMENTS: list[dict] = [
         "visa_type": "Visa-free for stays of up to 90 days",
         "visa_validity": "Tourist entry stamp at port of entry",
         "tourist_stay": "Up to 90 days",
-        "embassy_url": "https://venezuela.mid.ru/en/",
+        "embassy_url": "https://venezuela.mid.ru/",
         "advisory_level": 2,
         "advisory_summary": "Russian government maintains a strategic relationship with Caracas.",
-        "advisory_url": "https://venezuela.mid.ru/en/",
+        "advisory_url": "https://venezuela.mid.ru/",
         "investor_note": "Russian citizens enter visa-free. Strategic energy and military cooperation creates pathways for Russian investors not available to Western counterparts, but secondary-sanctions risk for any non-Russian co-investor is acute.",
     },
     {
@@ -145,10 +145,10 @@ VISA_REQUIREMENTS: list[dict] = [
         "visa_type": "Visa-free for stays of up to 90 days",
         "visa_validity": "Tourist entry stamp at port of entry",
         "tourist_stay": "Up to 90 days",
-        "embassy_url": "https://embajadadeemiratosarabes.org/",
+        "embassy_url": "https://www.mofa.gov.ae/en/missions/uae-missions-abroad",
         "advisory_level": 2,
         "advisory_summary": "UAE government maintains diplomatic and trade relations.",
-        "advisory_url": "https://embajadadeemiratosarabes.org/",
+        "advisory_url": "https://www.mofa.gov.ae/en/missions/uae-missions-abroad",
         "investor_note": "UAE citizens enter visa-free. Dubai has emerged as a meaningful intermediation hub for Venezuelan-related trade and asset structuring, particularly post-2022.",
     },
     {
@@ -161,10 +161,10 @@ VISA_REQUIREMENTS: list[dict] = [
         # Venezuela's foreign-affairs ministry (Cancillería) site is the
         # canonical pointer to the consular network; it works while
         # embajadadevenezuela.org no longer resolves.
-        "embassy_url": "http://mppre.gob.ve/embajadas-y-consulados/",
+        "embassy_url": "https://mppre.gob.ve/",
         "advisory_level": None,
         "advisory_summary": "Check your home country's foreign affairs ministry for the current advisory level.",
-        "advisory_url": "http://mppre.gob.ve/embajadas-y-consulados/",
+        "advisory_url": "https://mppre.gob.ve/",
         "investor_note": "Always confirm visa status, validity, and the current published advisory level with both the Venezuelan diplomatic mission in your country and your home country's foreign affairs ministry before booking travel.",
     },
 ]
