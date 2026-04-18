@@ -105,6 +105,7 @@ _NAV_CACHE_PATHS = frozenset({
     "/tools",
     "/explainers",
     "/calendar",
+    "/travel",
     "/sources",
 })
 _NAV_PAGE_CACHE: dict[str, dict] = {}
@@ -1383,6 +1384,241 @@ def calendar_page():
         abort(500)
 
 
+@app.route("/travel")
+@app.route("/travel/")
+def travel_page():
+    """
+    Caracas travel hub — embassies, hotels, restaurants, hospitals,
+    transport, security firms, money/comms, and the pre-trip + safety
+    checklists. Static curated dataset; the travel-advisory banner
+    is overridden live from the State Dept scraper when available.
+    """
+    try:
+        from src.data import travel as travel_data
+        from src.models import (
+            ExternalArticleEntry, SessionLocal, SourceType, init_db,
+        )
+        from src.page_renderer import _env, _base_url, _iso, settings as _s
+        from datetime import date as _date, datetime as _dt
+        import copy as _copy
+        import json as _json
+
+        advisory = _copy.deepcopy(travel_data.TRAVEL_ADVISORY_SUMMARY)
+
+        # Live override: pull the most recent State Dept scrape if present.
+        try:
+            init_db()
+            db = SessionLocal()
+            try:
+                latest = (
+                    db.query(ExternalArticleEntry)
+                    .filter(ExternalArticleEntry.source == SourceType.TRAVEL_ADVISORY)
+                    .order_by(ExternalArticleEntry.published_date.desc())
+                    .first()
+                )
+            finally:
+                db.close()
+        except Exception as exc:
+            logger.warning("travel advisory live fetch failed; using static fallback: %s", exc)
+            latest = None
+
+        if latest is not None:
+            meta = latest.extra_metadata or {}
+            level = meta.get("level")
+            level_text = (meta.get("level_text") or "").strip()
+            level_label_map = {
+                1: "Exercise Normal Precautions",
+                2: "Exercise Increased Caution",
+                3: "Reconsider Travel",
+                4: "Do Not Travel",
+            }
+            if isinstance(level, int) and 1 <= level <= 4:
+                advisory["level"] = level
+                advisory["label"] = level_text or level_label_map.get(level, advisory["label"])
+                advisory["issued"] = latest.published_date.strftime("%B %-d, %Y")
+
+        base = _base_url()
+        canonical = f"{base}/travel"
+        title = "Travel to Venezuela: Caracas Operational Briefing for Business Travellers"
+        description = (
+            "Embassies, hotels, restaurants, hospitals, ground transport, "
+            "corporate security firms, SIM cards, money, pre-trip and safety "
+            "checklists for foreign business travellers, journalists and NGO "
+            "staff visiting Caracas. Compiled from US State Department, OSAC, "
+            "MPPRE and embassy sources."
+        )
+        seo = {
+            "title": title,
+            "description": description,
+            "keywords": (
+                "travel to Venezuela, Caracas business travel, Caracas hotels, "
+                "Caracas restaurants, Caracas safety, embassies in Caracas, "
+                "Caracas airport transfer, Venezuela security firms, "
+                "Caracas hospitals, Venezuela travel checklist"
+            ),
+            "canonical": canonical,
+            "site_name": _s.site_name,
+            "site_url": base,
+            "locale": _s.site_locale,
+            "og_image": f"{base}/static/og-image.png?v=3",
+            "og_type": "article",
+            "published_iso": _iso(_dt.utcnow()),
+            "modified_iso": _iso(_dt.utcnow()),
+        }
+
+        faq = [
+            {
+                "q": "Is it safe to travel to Caracas right now?",
+                "a": (
+                    "The US State Department currently rates Venezuela at "
+                    "Level 3 (Reconsider Travel), with Level 4 (Do Not Travel) "
+                    "still applying to the Colombia border states (Apure, "
+                    "Barinas, Táchira, Zulia). Caracas itself can be navigated "
+                    "by experienced business travellers who stay in the safer "
+                    "central-east corridor (Las Mercedes, Altamira, La Castellana, "
+                    "El Rosal, Chacao), pre-arrange all transport, and engage "
+                    "a corporate security advisory before travel."
+                ),
+            },
+            {
+                "q": "Where do business travellers stay in Caracas?",
+                "a": (
+                    "The most-used business hotels are the JW Marriott Caracas, "
+                    "Renaissance Caracas La Castellana, Pestana Caracas, "
+                    "Eurobuilding Hotel & Suites, Hotel Tamanaco InterContinental, "
+                    "Hampton by Hilton Las Mercedes, and Embassy Suites Valle Arriba. "
+                    "All are in safer neighbourhoods and have concierge desks "
+                    "that arrange airport transfers."
+                ),
+            },
+            {
+                "q": "How do I get from Maiquetía airport (SVMI) to Caracas safely?",
+                "a": (
+                    "Always pre-arrange your airport transfer through your "
+                    "hotel before flying — this is the single most important "
+                    "logistics step. Never take a street taxi at Maiquetía. "
+                    "Most major hotels in Caracas operate or contract marked "
+                    "vehicles for the airport transfer when you quote your "
+                    "flight number at booking."
+                ),
+            },
+            {
+                "q": "Is there a US embassy in Caracas?",
+                "a": (
+                    "No. The US Embassy in Caracas suspended operations in "
+                    "March 2019. All emergency consular services for US "
+                    "citizens in Venezuela are handled by the US Embassy in "
+                    "Bogotá, Colombia (+57 1 275-2000)."
+                ),
+            },
+            {
+                "q": "What currency should I bring to Venezuela?",
+                "a": (
+                    "US dollar cash in small undamaged denominations ($1, $5, "
+                    "$10, $20) is the de-facto currency in Caracas — accepted "
+                    "by hotels, restaurants, supermarkets and most taxis. Carry "
+                    "a small amount of bolívar cash for street-level purchases. "
+                    "Foreign credit cards work inconsistently. If you have a "
+                    "US bank account, set up Zelle before travel — it functions "
+                    "as the informal cashless rail."
+                ),
+            },
+            {
+                "q": "Do I need a visa to enter Venezuela?",
+                "a": (
+                    "Most Western nationalities (US, UK, EU) need a tourist or "
+                    "business visa obtained in advance — there is no visa-on-arrival. "
+                    "UK and Canadian citizens are an exception (visa-free up to 90 "
+                    "days). Use our Venezuela visa requirements checker to confirm "
+                    "current rules for your passport."
+                ),
+            },
+            {
+                "q": "Which corporate security firms operate in Venezuela?",
+                "a": (
+                    "Established international firms that cover Venezuela include "
+                    "Control Risks, International SOS, Crisis24 (Garda World), "
+                    "and Pinkerton. They can arrange protective services, vetted "
+                    "drivers, and journey management. OSAC (US State Department) "
+                    "is also a free public-private intelligence-sharing service "
+                    "for US-incorporated companies."
+                ),
+            },
+        ]
+
+        graph = [
+            {
+                "@type": "BreadcrumbList",
+                "itemListElement": [
+                    {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                    {"@type": "ListItem", "position": 2, "name": "Invest in Venezuela", "item": f"{base}/invest-in-venezuela"},
+                    {"@type": "ListItem", "position": 3, "name": "Travel to Venezuela", "item": canonical},
+                ],
+            },
+            {
+                "@type": "Article",
+                "@id": f"{canonical}#article",
+                "url": canonical,
+                "headline": title,
+                "description": description,
+                "datePublished": seo["published_iso"],
+                "dateModified": seo["modified_iso"],
+                "author": {"@type": "Organization", "name": _s.site_name, "url": base + "/"},
+                "publisher": {
+                    "@type": "Organization",
+                    "name": _s.site_name,
+                    "url": base + "/",
+                    "logo": {
+                        "@type": "ImageObject",
+                        "url": f"{base}/static/og-image.png?v=3",
+                    },
+                },
+                "mainEntityOfPage": {"@type": "WebPage", "@id": canonical, "name": title},
+            },
+            {
+                "@type": "FAQPage",
+                "mainEntity": [
+                    {
+                        "@type": "Question",
+                        "name": q["q"],
+                        "acceptedAnswer": {"@type": "Answer", "text": q["a"]},
+                    }
+                    for q in faq
+                ],
+            },
+        ]
+        jsonld = _json.dumps(
+            {"@context": "https://schema.org", "@graph": graph},
+            ensure_ascii=False,
+        )
+
+        template = _env.get_template("travel.html.j2")
+        html = template.render(
+            seo=seo,
+            jsonld=jsonld,
+            advisory=advisory,
+            embassies=travel_data.EMBASSIES,
+            hotels=travel_data.HOTELS,
+            restaurants=travel_data.RESTAURANTS,
+            medical=travel_data.MEDICAL_PROVIDERS,
+            transport=travel_data.GROUND_TRANSPORT,
+            security=travel_data.SECURITY_FIRMS,
+            communications=travel_data.COMMUNICATIONS,
+            money=travel_data.MONEY_AND_BANKING,
+            pre_trip=travel_data.PRE_TRIP_CHECKLIST,
+            safety=travel_data.SAFETY_CHECKLIST,
+            emergency=travel_data.EMERGENCY_NUMBERS,
+            updated_label=_date.today().strftime("%B %-d, %Y"),
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("travel page render failed: %s", exc)
+        abort(500)
+
+
 @app.route("/sectors/<slug>")
 def sector_page(slug: str):
     """Evergreen sector landing page."""
@@ -1633,6 +1869,7 @@ def sitemap_xml():
         {"loc": f"{base}/invest-in-venezuela", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.9"},
         {"loc": f"{base}/sanctions-tracker", "lastmod": today_iso, "changefreq": "daily", "priority": "0.9"},
         {"loc": f"{base}/calendar", "lastmod": today_iso, "changefreq": "daily", "priority": "0.7"},
+        {"loc": f"{base}/travel", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.8"},
         {"loc": f"{base}/sources", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.6"},
         {"loc": f"{base}/briefing", "lastmod": today_iso, "changefreq": "daily", "priority": "0.9"},
         {"loc": f"{base}/tools", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.8"},

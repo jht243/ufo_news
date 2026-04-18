@@ -1,0 +1,396 @@
+{% extends "_base.html.j2" %}
+
+{% block head_extra %}
+<style>
+  .travel-hero { background: linear-gradient(180deg, #f6f8fa 0%, var(--white) 100%); padding: 28px 0 16px; margin-bottom: 16px; }
+  .travel-hero .kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: #cc0000; font-weight: 700; }
+  .travel-hero h1 { font-family: var(--font-serif); font-size: 36px; color: var(--sr-blue-dark); margin: 8px 0 12px; line-height: 1.2; }
+  .travel-hero p.lead { font-family: var(--font-serif); font-style: italic; color: var(--sr-gray-text); font-size: 18px; max-width: 720px; }
+
+  .advisory { padding: 14px 18px; border-radius: 4px; margin: 16px 0 28px; }
+  .advisory.l4 { background: #fdecea; border-left: 4px solid var(--sr-red); }
+  .advisory.l3 { background: #fff3e0; border-left: 4px solid #f5b041; }
+  .advisory.l2 { background: #fff8e1; border-left: 4px solid #fbc02d; }
+  .advisory.l1 { background: #e8f5e9; border-left: 4px solid #2e7d32; }
+  .advisory .lvl { font-weight: 700; }
+
+  .toc { background: var(--sr-gray-bg); border-left: 3px solid var(--sr-blue); padding: 18px 22px; margin: 0 0 32px; font-size: 14px; }
+  .toc h3 { font-family: var(--font-serif); font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--sr-blue-dark); margin-bottom: 10px; }
+  .toc ol { margin-left: 20px; columns: 2; column-gap: 24px; }
+  .toc li { margin-bottom: 6px; }
+  @media (max-width: 640px) { .toc ol { columns: 1; } }
+
+  .sec { margin: 40px 0 24px; padding-top: 8px; }
+  .sec h2 { font-family: var(--font-serif); font-size: 26px; color: var(--sr-blue-dark); margin-bottom: 8px; }
+  .sec .sec-lead { color: var(--sr-gray-text); margin-bottom: 18px; font-size: 15px; }
+
+  .card-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 18px; }
+  @media (min-width: 720px) { .card-grid.cols-2 { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 980px) { .card-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+  .card { background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 4px; padding: 18px 20px; transition: border-color 0.15s, transform 0.15s; }
+  .card:hover { border-color: var(--sr-blue); transform: translateY(-1px); }
+  .card h3 { font-family: var(--font-serif); font-size: 17px; color: var(--sr-blue-dark); margin-bottom: 6px; }
+  .card .meta { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sr-gray-text); margin-bottom: 8px; }
+  .card .row { font-size: 14px; margin: 4px 0; }
+  .card .row strong { color: var(--sr-dark-text); display: inline-block; min-width: 96px; font-weight: 600; }
+  .card a.tel { font-weight: 600; color: var(--sr-blue); text-decoration: none; }
+  .card a.tel:hover { text-decoration: underline; }
+  .card .note { font-size: 13px; color: var(--sr-gray-text); margin-top: 10px; line-height: 1.55; padding-top: 10px; border-top: 1px dotted var(--sr-gray-light); }
+  .card a.cta { font-size: 13px; color: var(--sr-blue); font-weight: 600; text-decoration: none; }
+  .card a.cta:hover { text-decoration: underline; }
+
+  .checklist { list-style: none; margin: 0 0 8px; padding: 0; }
+  .checklist li { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px dotted var(--sr-gray-light); align-items: flex-start; }
+  .checklist li:last-child { border-bottom: 0; }
+  .checklist .marker { flex-shrink: 0; width: 22px; height: 22px; border: 2px solid var(--sr-blue); border-radius: 4px; margin-top: 2px; display: inline-block; }
+  .checklist .marker.warn { border-color: #cc0000; }
+  .checklist .body h4 { font-family: var(--font-sans); font-size: 15px; color: var(--sr-dark-text); margin-bottom: 4px; font-weight: 700; }
+  .checklist .body p { font-size: 14px; color: var(--sr-gray-text); margin: 0; line-height: 1.6; }
+  .checklist .body a { color: var(--sr-blue); }
+
+  .em-table { width: 100%; border-collapse: collapse; margin: 8px 0 18px; font-size: 14px; }
+  .em-table th, .em-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--sr-gray-light); }
+  .em-table th { background: var(--sr-gray-bg); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--sr-gray-text); font-weight: 600; }
+  .em-table td.num { font-family: var(--font-sans); font-weight: 600; color: var(--sr-blue); white-space: nowrap; }
+
+  .disclaimer { background: #fff8e1; border-left: 4px solid #f5b041; padding: 14px 18px; border-radius: 3px; margin: 20px 0; font-size: 13.5px; line-height: 1.65; color: var(--sr-dark-text); }
+
+  .pillbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 24px; }
+  .pillbar a { display: inline-block; padding: 6px 14px; background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--sr-blue-dark); text-decoration: none; }
+  .pillbar a:hover { border-color: var(--sr-blue); color: var(--sr-blue); }
+
+  .page-share-row { display: flex; justify-content: flex-end; margin: 4px 0 -4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="container-wide">
+
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a><span>/</span>
+    <a href="/invest-in-venezuela">Invest in Venezuela</a><span>/</span>
+    <span>Travel to Venezuela</span>
+  </nav>
+
+  <div class="page-share-row">
+    {{ share_button(seo.canonical, seo.title) }}
+  </div>
+
+  <header class="travel-hero">
+    <div class="kicker">Travel hub · Updated {{ updated_label }}</div>
+    <h1>Travel to Venezuela: Caracas Operational Briefing</h1>
+    <p class="lead">
+      Embassies, hotels, restaurants, hospitals, transport, security firms,
+      money, comms, and the pre-trip and on-the-ground checklists for
+      foreign business travellers, journalists and NGO staff visiting Caracas.
+    </p>
+  </header>
+
+  {% if advisory %}
+  <div class="advisory l{{ advisory.level }}">
+    <div><span class="lvl">US State Department: Level {{ advisory.level }} — {{ advisory.label }}</span> (issued {{ advisory.issued }})</div>
+    <div style="font-size: 14px; margin-top: 8px;">{{ advisory.summary }}</div>
+    <div style="font-size: 13px; margin-top: 8px;">
+      <a href="{{ advisory.primary_url }}" rel="nofollow noopener" target="_blank" style="color: inherit;">Read the full advisory &rarr;</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="disclaimer">
+    <strong>Editorial note.</strong> Caracas Research compiles this hub from
+    public sources (US State Department, OSAC, MPPRE, embassy websites, hotel
+    chains' own listings). We do <em>not</em> personally inspect or
+    certify any third-party hotel, restaurant, driver, hospital or security
+    firm. Conditions in Venezuela change quickly — always reconfirm a
+    service is operating, the current pricing, and the current security
+    posture before relying on it.
+  </div>
+
+  <div class="toc">
+    <h3>On this page</h3>
+    <ol>
+      <li><a href="#embassies">Embassies &amp; consulates</a></li>
+      <li><a href="#hotels">Where to stay</a></li>
+      <li><a href="#restaurants">Where to eat</a></li>
+      <li><a href="#medical">Hospitals &amp; medical</a></li>
+      <li><a href="#transport">Ground transport &amp; drivers</a></li>
+      <li><a href="#security">Corporate security advisory</a></li>
+      <li><a href="#comms">Communications &amp; SIM cards</a></li>
+      <li><a href="#money">Money &amp; banking</a></li>
+      <li><a href="#pretrip">Pre-departure checklist</a></li>
+      <li><a href="#safety">Personal safety checklist</a></li>
+      <li><a href="#emergency">Emergency numbers</a></li>
+    </ol>
+  </div>
+
+  <div class="pillbar">
+    <a href="/tools/venezuela-visa-requirements">Visa &amp; entry tool &rarr;</a>
+    <a href="/tools/caracas-safety-map">Caracas safety map &rarr;</a>
+    <a href="/tools/bolivar-usd">Live BCV &amp; parallel rate &rarr;</a>
+    <a href="/sanctions-tracker">OFAC sanctions tracker &rarr;</a>
+  </div>
+
+  {# ======================================================================= #}
+  <section id="embassies" class="sec">
+    <h2>1. Embassies &amp; consulates in Caracas</h2>
+    <p class="sec-lead">
+      Register with your embassy <em>before</em> you fly via your foreign
+      ministry's traveller-registration system (US: STEP; UK: FCDO; Canada:
+      ROCA). All numbers below are in international dialling format.
+    </p>
+    <div class="card-grid cols-2">
+      {% for e in embassies %}
+      <div class="card">
+        <div class="meta">{{ e.country }}</div>
+        <h3>Embassy in {{ e.city }}</h3>
+        {% if e.address %}<div class="row"><strong>Address</strong>{{ e.address }}</div>{% endif %}
+        {% if e.phone %}<div class="row"><strong>Phone</strong><a class="tel" href="tel:{{ e.phone | replace(' ', '') | replace('(', '') | replace(')', '') | replace('-', '') }}">{{ e.phone }}</a></div>{% endif %}
+        {% if e.after_hours %}<div class="row"><strong>After-hours</strong>{{ e.after_hours }}</div>{% endif %}
+        {% if e.email %}<div class="row"><strong>Email</strong><a href="mailto:{{ e.email }}">{{ e.email }}</a></div>{% endif %}
+        {% if e.website %}<div class="row"><strong>Website</strong><a href="{{ e.website }}" rel="nofollow noopener" target="_blank">Official site &rarr;</a></div>{% endif %}
+        {% if e.notes %}<div class="note">{{ e.notes }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="hotels" class="sec">
+    <h2>2. Where to stay</h2>
+    <p class="sec-lead">
+      The hotels below are international or long-established Venezuelan
+      properties in safer neighbourhoods (Las Mercedes, La Castellana,
+      Altamira, El Rosal, Chuao). Their concierges arrange airport transfers,
+      which is the single most important logistics call you make on this trip.
+    </p>
+    <div class="card-grid cols-2">
+      {% for h in hotels %}
+      <div class="card">
+        <div class="meta">{{ h.tier }} · {{ h.neighborhood }}</div>
+        <h3>{{ h.name }}</h3>
+        {% if h.address %}<div class="row"><strong>Address</strong>{{ h.address }}</div>{% endif %}
+        {% if h.phone %}<div class="row"><strong>Phone</strong><a class="tel" href="tel:{{ h.phone | replace(' ', '') | replace('(', '') | replace(')', '') | replace('-', '') }}">{{ h.phone }}</a></div>{% endif %}
+        {% if h.url %}<div class="row"><strong>Booking</strong><a href="{{ h.url }}" rel="nofollow noopener" target="_blank">Official site &rarr;</a></div>{% endif %}
+        {% if h.why_listed %}<div class="note">{{ h.why_listed }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="restaurants" class="sec">
+    <h2>3. Where to eat</h2>
+    <p class="sec-lead">
+      All entries are well-established restaurants in safer central-east
+      neighbourhoods. Reservations are advised for dinner; valet parking
+      is the norm. We deliberately do not list late-night venues outside
+      these zones.
+    </p>
+    <div class="card-grid cols-2">
+      {% for r in restaurants %}
+      <div class="card">
+        <div class="meta">{{ r.cuisine }} · {{ r.neighborhood }}</div>
+        <h3>{{ r.name }}</h3>
+        {% if r.phone %}<div class="row"><strong>Phone</strong><a class="tel" href="tel:{{ r.phone | replace(' ', '') | replace('(', '') | replace(')', '') | replace('-', '') }}">{{ r.phone }}</a></div>{% endif %}
+        {% if r.url %}<div class="row"><strong>Listing</strong><a href="{{ r.url }}" rel="nofollow noopener" target="_blank">Open &rarr;</a></div>{% endif %}
+        {% if r.notes %}<div class="note">{{ r.notes }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="medical" class="sec">
+    <h2>4. Hospitals &amp; medical providers</h2>
+    <p class="sec-lead">
+      Public hospitals are heavily under-resourced and visitors should plan
+      around the private clinics below. Confirm direct billing with your
+      travel-medical insurer (e.g. International SOS) before you fly.
+    </p>
+    <div class="card-grid cols-2">
+      {% for m in medical %}
+      <div class="card">
+        <div class="meta">{{ m.type }} · {{ m.neighborhood }}</div>
+        <h3>{{ m.name }}</h3>
+        {% if m.phone %}<div class="row"><strong>Phone</strong><a class="tel" href="tel:{{ m.phone | replace(' ', '') | replace('(', '') | replace(')', '') | replace('-', '') }}">{{ m.phone }}</a></div>{% endif %}
+        {% if m.url %}<div class="row"><strong>Website</strong><a href="{{ m.url }}" rel="nofollow noopener" target="_blank">Official site &rarr;</a></div>{% endif %}
+        {% if m.notes %}<div class="note">{{ m.notes }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="transport" class="sec">
+    <h2>5. Ground transport &amp; drivers</h2>
+    <p class="sec-lead">
+      <strong>The single most important rule:</strong> never take a street
+      taxi, especially not at SVMI airport. Always pre-arrange transport.
+      The default option for almost every business traveller is to book the
+      airport transfer through the hotel's reservation desk before flying.
+    </p>
+    <div class="card-grid cols-2">
+      {% for t in transport %}
+      <div class="card">
+        <div class="meta">{{ t.type }}</div>
+        <h3>{{ t.name }}</h3>
+        {% if t.phone %}<div class="row"><strong>Contact</strong>{{ t.phone }}</div>{% endif %}
+        {% if t.url %}<div class="row"><strong>Link</strong><a href="{{ t.url }}" rel="nofollow noopener" target="_blank">Open &rarr;</a></div>{% endif %}
+        {% if t.notes %}<div class="note">{{ t.notes }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="security" class="sec">
+    <h2>6. Corporate security advisory</h2>
+    <p class="sec-lead">
+      For protective services in Caracas (executive transport with vetted
+      drivers, residential security, journey management, evacuation), engage
+      one of the established international security firms below rather than
+      contracting a local protective-services vendor cold. They maintain the
+      vetted local relationships you need.
+    </p>
+    <div class="card-grid cols-2">
+      {% for s in security %}
+      <div class="card">
+        <div class="meta">{{ s.type }}</div>
+        <h3>{{ s.name }}</h3>
+        {% if s.phone %}<div class="row"><strong>Phone</strong>{{ s.phone }}</div>{% endif %}
+        {% if s.url %}<div class="row"><strong>Website</strong><a href="{{ s.url }}" rel="nofollow noopener" target="_blank">Open &rarr;</a></div>{% endif %}
+        {% if s.notes %}<div class="note">{{ s.notes }}</div>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="comms" class="sec">
+    <h2>7. Communications &amp; SIM cards</h2>
+    <p class="sec-lead">
+      Cellular roaming on US carriers is unreliable; plan around an eSIM
+      activated before you board, plus a VPN configured in advance.
+    </p>
+    <ul class="checklist">
+      {% for c in communications %}
+      <li>
+        <span class="marker"></span>
+        <div class="body">
+          <h4>{{ c.topic }}</h4>
+          <p>{{ c.detail }}</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="money" class="sec">
+    <h2>8. Money &amp; banking</h2>
+    <p class="sec-lead">
+      Caracas runs on US dollar cash and informal Zelle transfers. Bring
+      small denominations and don't rely on ATMs.
+    </p>
+    <ul class="checklist">
+      {% for m in money %}
+      <li>
+        <span class="marker"></span>
+        <div class="body">
+          <h4>{{ m.topic }}</h4>
+          <p>{{ m.detail }}
+            {% if m.url %}<a href="{{ m.url }}">See live rates &rarr;</a>{% endif %}
+          </p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="pretrip" class="sec">
+    <h2>9. Pre-departure checklist</h2>
+    <p class="sec-lead">
+      Work this list end-to-end at least two weeks before departure.
+    </p>
+    <ul class="checklist">
+      {% for item in pre_trip %}
+      <li>
+        <span class="marker"></span>
+        <div class="body">
+          <h4>{{ item.label }}</h4>
+          <p>{{ item.detail }}
+            {% if item.url %}
+              <a href="{{ item.url }}"{% if not item.url.startswith('/') %} rel="nofollow noopener" target="_blank"{% endif %}>
+                {% if item.url.startswith('/') %}Open the tool{% else %}Open{% endif %} &rarr;
+              </a>
+            {% endif %}
+          </p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="safety" class="sec">
+    <h2>10. Personal safety checklist</h2>
+    <p class="sec-lead">
+      These are the on-the-ground rules that experienced visitors,
+      diplomats and journalists treat as non-negotiable.
+    </p>
+    <ul class="checklist">
+      {% for r in safety %}
+      <li>
+        <span class="marker warn"></span>
+        <div class="body">
+          <h4>{{ r.rule }}</h4>
+          <p>{{ r.detail }}</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {# ======================================================================= #}
+  <section id="emergency" class="sec">
+    <h2>11. Emergency numbers</h2>
+    <p class="sec-lead">
+      Save these to your phone before you fly. In a serious incident, call
+      your embassy first, then your security/medical assistance provider,
+      then local emergency services.
+    </p>
+    <table class="em-table">
+      <thead>
+        <tr><th style="width:65%;">Service</th><th>Number</th></tr>
+      </thead>
+      <tbody>
+        {% for e in emergency %}
+        <tr>
+          <td>{{ e.label }}</td>
+          <td class="num">{{ e.number }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <div style="margin-top: 40px; padding: 18px; background: var(--sr-gray-bg); border-radius: 4px;">
+    <p style="font-size: 14px; color: var(--sr-dark-text); margin: 0;">
+      <strong>Heading to Venezuela?</strong>
+      Subscribe to the Caracas Research daily briefing for sanctions, FX,
+      legal and political updates that affect your trip and your business
+      in Venezuela. <a href="/#signup" style="font-weight: 600;">Get the daily briefing &rarr;</a>
+    </p>
+  </div>
+
+  <p style="font-size: 12px; color: var(--sr-gray-text); margin: 24px 0;">
+    Sources: US State Department Travel Advisory and OSAC Caracas Crime &amp;
+    Safety Report; UK FCDO Foreign Travel Advice; MPPRE consular directory;
+    embassy and hotel websites cited above. Information is for planning
+    purposes only and does not constitute travel, legal or security advice.
+  </p>
+
+</section>
+{% endblock %}
