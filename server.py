@@ -338,10 +338,12 @@ def tool_caracas_safety():
     """Curated Caracas neighborhood safety reference."""
     try:
         from src.data.caracas_neighborhoods import list_caracas_neighborhoods
+        from src.data.caracas_landmarks import list_caracas_landmarks
         from src.page_renderer import _env
         from datetime import date as _date
 
         neighborhoods = list_caracas_neighborhoods()
+        landmarks = list_caracas_landmarks()
 
         seo, jsonld = _tool_seo_jsonld(
             slug="caracas-safety-by-neighborhood",
@@ -372,6 +374,7 @@ def tool_caracas_safety():
         template = _env.get_template("tools/safety_map.html.j2")
         html = template.render(
             neighborhoods=neighborhoods,
+            landmarks=landmarks,
             seo=seo,
             jsonld=jsonld,
             current_year=_date.today().year,
@@ -1626,6 +1629,83 @@ def travel_page():
         abort(500)
 
 
+@app.route("/travel/emergency-card")
+@app.route("/travel/emergency-card/")
+def travel_emergency_card():
+    """
+    Printable, two-page bilingual emergency card for visitors to Caracas.
+    Front: Spanish-first "show this to a stranger" sheet (hospitals, embassies,
+    big phone numbers, fillable medical + hotel info).
+    Back: English "for me, when I'm rattled" reference (decision tree, safe
+    corridor, six rules, money cheat-sheet, Spanish phrases).
+
+    Designed to print double-sided on A4/Letter and fold into a passport.
+    """
+    try:
+        from src.data import travel as travel_data
+        from src.page_renderer import _env, _base_url
+        from datetime import date as _date
+
+        # The full embassy dataset uses long English labels and English country
+        # names. For the front-of-card "show to a driver" panel we want short
+        # Spanish country names and a 2-letter flag tag. Map only the missions
+        # most relevant to typical English-speaking visitors; ordering matters
+        # because the template slices the top N for the printed grid.
+        country_es_map = {
+            "United States": ("EE.UU.", "US"),
+            "United Kingdom": ("Reino Unido", "UK"),
+            "Canada": ("Canadá", "CA"),
+            "Spain": ("España", "ES"),
+            "France": ("Francia", "FR"),
+            "Germany": ("Alemania", "DE"),
+            "Italy": ("Italia", "IT"),
+            "Netherlands": ("Países Bajos", "NL"),
+            "Switzerland": ("Suiza", "CH"),
+            "Brazil": ("Brasil", "BR"),
+            "Colombia": ("Colombia", "CO"),
+            "Mexico": ("México", "MX"),
+        }
+        embassies_top = []
+        for e in travel_data.EMBASSIES:
+            country_es, short = country_es_map.get(
+                e["country"], (e["country"], e["country"][:2].upper())
+            )
+            embassies_top.append({
+                "country_es": country_es,
+                "short": short,
+                "address": e.get("address", ""),
+                "phone": e.get("phone", ""),
+                "after_hours": e.get("after_hours", ""),
+            })
+
+        base = _base_url()
+        seo = {
+            "title": "Caracas Emergency Card — Printable Bilingual Pocket Sheet",
+            "description": (
+                "Two-page printable pocket card for visitors to Caracas. "
+                "Spanish-first front shows hospitals, embassies and emergency "
+                "numbers a taxi driver or stranger can act on; English back is "
+                "a what-to-do reference if your phone is dead or stolen."
+            ),
+            "canonical": f"{base}/travel/emergency-card",
+        }
+
+        template = _env.get_template("emergency_card.html.j2")
+        html = template.render(
+            seo=seo,
+            embassies_top=embassies_top,
+            medical=travel_data.MEDICAL_PROVIDERS,
+            emergency=travel_data.EMERGENCY_NUMBERS,
+            updated_label=_date.today().strftime("%B %-d, %Y"),
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("emergency card render failed: %s", exc)
+        abort(500)
+
+
 @app.route("/sectors/<slug>")
 def sector_page(slug: str):
     """Evergreen sector landing page."""
@@ -1854,6 +1934,7 @@ def robots_txt():
         "Disallow: /api/\n"
         "Disallow: /health\n"
         f"Sitemap: {base}/sitemap.xml\n"
+        f"Sitemap: {base}/news-sitemap.xml\n"
     )
     return Response(body, mimetype="text/plain")
 
@@ -1989,6 +2070,100 @@ def sitemap_xml():
         parts.append("</url>")
     parts.append("</urlset>")
     return Response("".join(parts), mimetype="application/xml")
+
+
+@app.route("/news-sitemap.xml")
+def news_sitemap_xml():
+    """
+    Google News-spec sitemap. Per Google's documentation
+    (https://developers.google.com/search/docs/crawling-indexing/sitemaps/news-sitemap)
+    this must:
+
+      - include only URLs published within the last 48 hours
+      - cap at 1,000 URLs
+      - use the news: XML namespace
+      - emit <news:publication>, <news:publication_date>, <news:title>
+        for every entry, plus optional <news:keywords>
+
+    We feed the news-eligible BlogPost rows. The standard /sitemap.xml
+    keeps the full backlog for general web search; this one is the fast,
+    Top-Stories-eligible feed Google News auto-discovery polls.
+
+    Falls back to an empty (but well-formed) news sitemap if the DB is
+    unavailable — Google prefers an empty sitemap to a 500.
+    """
+    from datetime import datetime as _datetime, timezone as _tz, timedelta as _td
+    from xml.sax.saxutils import escape as _xml_escape
+
+    base = settings.site_url.rstrip("/")
+    publication_name = settings.site_name
+    publication_lang = (settings.site_locale or "en_US").split("_", 1)[0] or "en"
+
+    cutoff = _datetime.now(_tz.utc) - _td(hours=48)
+
+    items: list[dict] = []
+    try:
+        from src.models import SessionLocal, init_db, BlogPost
+
+        init_db()
+        db = SessionLocal()
+        try:
+            recent_posts = (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc(), BlogPost.id.desc())
+                .limit(1000)
+                .all()
+            )
+            for p in recent_posts:
+                pub_dt = p.created_at or p.updated_at
+                if pub_dt is None:
+                    pub_dt = _datetime.combine(
+                        p.published_date, _datetime.min.time()
+                    )
+                if pub_dt.tzinfo is None:
+                    pub_dt = pub_dt.replace(tzinfo=_tz.utc)
+                if pub_dt < cutoff:
+                    continue
+
+                kws = p.keywords_json or []
+                if isinstance(kws, str):
+                    kws = [k.strip() for k in kws.split(",") if k.strip()]
+                kws_str = ", ".join(kws[:10]) if kws else ""
+
+                items.append({
+                    "loc": f"{base}/briefing/{p.slug}",
+                    "publication_date": pub_dt.isoformat(),
+                    "title": (p.title or "")[:300],
+                    "keywords": kws_str,
+                })
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("news-sitemap dynamic generation failed, returning empty: %s", exc)
+
+    parts = ['<?xml version="1.0" encoding="UTF-8"?>']
+    parts.append(
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" '
+        'xmlns:news="http://www.google.com/schemas/sitemap-news/0.9">'
+    )
+    for it in items:
+        parts.append("<url>")
+        parts.append(f"<loc>{_xml_escape(it['loc'])}</loc>")
+        parts.append("<news:news>")
+        parts.append("<news:publication>")
+        parts.append(f"<news:name>{_xml_escape(publication_name)}</news:name>")
+        parts.append(f"<news:language>{_xml_escape(publication_lang)}</news:language>")
+        parts.append("</news:publication>")
+        parts.append(f"<news:publication_date>{_xml_escape(it['publication_date'])}</news:publication_date>")
+        parts.append(f"<news:title>{_xml_escape(it['title'])}</news:title>")
+        if it["keywords"]:
+            parts.append(f"<news:keywords>{_xml_escape(it['keywords'])}</news:keywords>")
+        parts.append("</news:news>")
+        parts.append("</url>")
+    parts.append("</urlset>")
+    resp = Response("".join(parts), mimetype="application/xml")
+    resp.headers["Cache-Control"] = "public, max-age=900"
+    return resp
 
 
 @app.route("/health")

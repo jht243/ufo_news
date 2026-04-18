@@ -62,6 +62,7 @@ def render_blog_post(post, *, related: list | None = None) -> str:
         "title": (post.title or "")[:110],
         "description": (post.summary or post.subtitle or "")[:300],
         "keywords": ", ".join(keywords) if keywords else "",
+        "news_keywords": ", ".join(keywords[:10]) if keywords else "",
         "canonical": canonical,
         "site_name": settings.site_name,
         "site_url": base,

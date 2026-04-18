@@ -15,6 +15,7 @@
   <title>{{ _seo.title|default('Caracas Research') }}</title>
   <meta name="description" content="{{ _seo.description|default('') }}">
   {% if _seo.keywords %}<meta name="keywords" content="{{ _seo.keywords }}">{% endif %}
+  {% if _seo.news_keywords %}<meta name="news_keywords" content="{{ _seo.news_keywords }}">{% endif %}
   <meta name="author" content="{{ _seo.site_name|default('Caracas Research') }}">
   <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
   <link rel="canonical" href="{{ _seo.canonical|default('') }}">
