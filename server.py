@@ -1597,6 +1597,7 @@ def travel_page():
             seo=seo,
             jsonld=jsonld,
             advisory=advisory,
+            registration_programs=travel_data.EMBASSY_REGISTRATION_PROGRAMS,
             embassies=travel_data.EMBASSIES,
             hotels=travel_data.HOTELS,
             restaurants=travel_data.RESTAURANTS,

@@ -61,6 +61,21 @@
   .pillbar a:hover { border-color: var(--sr-blue); color: var(--sr-blue); }
 
   .page-share-row { display: flex; justify-content: flex-end; margin: 4px 0 -4px; }
+
+  /* "Register your trip" callout — visually distinct and impossible to miss. */
+  .register-callout { background: #f4f8fb; border: 1px solid #cfdce8; border-left: 5px solid var(--sr-blue); padding: 22px 24px; border-radius: 4px; margin: 28px 0 32px; }
+  .register-callout .kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--sr-red); font-weight: 700; margin-bottom: 6px; }
+  .register-callout h2 { font-family: var(--font-serif); font-size: 24px; color: var(--sr-blue-dark); margin: 0 0 10px; }
+  .register-callout p { font-size: 15px; color: var(--sr-dark-text); margin: 0 0 16px; line-height: 1.65; max-width: 760px; }
+  .register-callout p.fine { font-size: 13px; color: var(--sr-gray-text); margin-top: 14px; margin-bottom: 0; }
+  .register-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 720px) { .register-grid { grid-template-columns: 1fr 1fr; } }
+  @media (min-width: 1080px) { .register-grid { grid-template-columns: 1fr 1fr 1fr; } }
+  .register-grid a { display: block; padding: 12px 14px; background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 4px; text-decoration: none; color: var(--sr-dark-text); transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s; }
+  .register-grid a:hover { border-color: var(--sr-blue); transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05); }
+  .register-grid .country { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--sr-gray-text); margin-bottom: 2px; }
+  .register-grid .program { display: block; font-family: var(--font-serif); font-weight: 700; font-size: 15px; color: var(--sr-blue-dark); margin-bottom: 4px; }
+  .register-grid .blurb { display: block; font-size: 12.5px; color: var(--sr-gray-text); line-height: 1.5; }
 </style>
 {% endblock %}
 
@@ -107,8 +122,39 @@
     posture before relying on it.
   </div>
 
+  <div id="register" class="register-callout">
+    <div class="kicker">Do this first · Free · Takes about 5 minutes</div>
+    <h2>Register your trip with your embassy before you fly</h2>
+    <p>
+      Most foreign ministries operate a free traveller-registration service.
+      Enrol once and (a) your government can locate and contact you in a
+      crisis (mass evacuation, family emergency, civil unrest), and
+      (b) you receive real-time security alerts on your phone or email
+      throughout the trip. This is the single most important pre-departure
+      action after booking your flight, and the one most travellers skip.
+    </p>
+    <div class="register-grid">
+      {% for r in registration_programs %}
+      <a href="{{ r.url }}" rel="nofollow noopener" target="_blank">
+        <span class="country">{{ r.country }}</span>
+        <span class="program">{{ r.program }}</span>
+        <span class="blurb">{{ r.blurb }}</span>
+      </a>
+      {% endfor %}
+    </div>
+    <p class="fine">
+      Other nationalities: ask your foreign ministry's consular section
+      whether they operate a traveller-registration system &mdash; most
+      G20 countries do, and enrolment is always free.
+    </p>
+  </div>
+
   <div class="toc">
     <h3>On this page</h3>
+    <p style="margin: 0 0 8px; font-size: 14px;">
+      <a href="#register" style="color: var(--sr-red); font-weight: 700;">&#9755; Register your trip with your embassy</a>
+      <span style="color: var(--sr-gray-text);"> &mdash; do this first</span>
+    </p>
     <ol>
       <li><a href="#embassies">Embassies &amp; consulates</a></li>
       <li><a href="#hotels">Where to stay</a></li>
@@ -322,9 +368,13 @@
           <h4>{{ item.label }}</h4>
           <p>{{ item.detail }}
             {% if item.url %}
-              <a href="{{ item.url }}"{% if not item.url.startswith('/') %} rel="nofollow noopener" target="_blank"{% endif %}>
-                {% if item.url.startswith('/') %}Open the tool{% else %}Open{% endif %} &rarr;
-              </a>
+              {% if item.url.startswith('#') %}
+                <a href="{{ item.url }}">Jump to the registration section &darr;</a>
+              {% elif item.url.startswith('/') %}
+                <a href="{{ item.url }}">Open the tool &rarr;</a>
+              {% else %}
+                <a href="{{ item.url }}" rel="nofollow noopener" target="_blank">Open &rarr;</a>
+              {% endif %}
             {% endif %}
           </p>
         </div>

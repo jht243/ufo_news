@@ -53,6 +53,89 @@ TRAVEL_ADVISORY_SUMMARY = {
 
 
 # ----------------------------------------------------------------------------
+# 1b) Embassy traveller-registration programs
+# ----------------------------------------------------------------------------
+# Free, government-operated traveller-registration systems. Once enrolled,
+# the foreign ministry can (a) contact you in a crisis (mass evacuation,
+# family emergency, natural disaster), and (b) push real-time security
+# alerts to your phone or email during the trip. This is the single most
+# important pre-departure action after booking your flight — costs
+# nothing, takes about five minutes.
+EMBASSY_REGISTRATION_PROGRAMS: list[dict] = [
+    {
+        "country": "United States",
+        "program": "STEP",
+        "long_name": "Smart Traveler Enrollment Program",
+        "url": "https://step.state.gov/",
+        "blurb": "Run by the US State Department. Enrol your trip and your contact info; receive State Department alerts and become locatable in a crisis.",
+    },
+    {
+        "country": "United Kingdom",
+        "program": "GOV.UK email alerts",
+        "long_name": "FCDO Foreign Travel Advice subscription",
+        "url": "https://www.gov.uk/foreign-travel-advice/venezuela",
+        "blurb": "The FCDO retired LOCATE in 2013; the modern equivalent is to subscribe to email/SMS alerts on the Venezuela travel-advice page.",
+    },
+    {
+        "country": "Canada",
+        "program": "ROCA",
+        "long_name": "Registration of Canadians Abroad",
+        "url": "https://travel.gc.ca/travelling/registration",
+        "blurb": "Free service from Global Affairs Canada. Lets the embassy contact you and family in an emergency.",
+    },
+    {
+        "country": "Australia",
+        "program": "Smartraveller",
+        "long_name": "DFAT Smartraveller subscriptions",
+        "url": "https://www.smartraveller.gov.au/destinations/americas/venezuela",
+        "blurb": "Subscribe to email/SMS updates for the Venezuela advisory; DFAT will use your registered details to reach you in a consular crisis.",
+    },
+    {
+        "country": "Germany",
+        "program": "Elefand",
+        "long_name": "Elektronische Erfassung von Deutschen im Ausland",
+        "url": "https://elefand.diplo.de/",
+        "blurb": "Auswärtiges Amt's crisis-preparedness register for German citizens abroad.",
+    },
+    {
+        "country": "France",
+        "program": "Ariane",
+        "long_name": "Fil d'Ariane",
+        "url": "https://pastel.diplomatie.gouv.fr/fildariane/dyn/public/login.html",
+        "blurb": "Quai d'Orsay's free traveller-registration system. Receive security alerts and be reachable by the consulate.",
+    },
+    {
+        "country": "Italy",
+        "program": "Dove Siamo Nel Mondo",
+        "long_name": "Italian Foreign Ministry traveller register",
+        "url": "https://www.dovesiamonelmondo.it/",
+        "blurb": "Free service from the Ministero degli Affari Esteri for Italian citizens abroad.",
+    },
+    {
+        "country": "Spain",
+        "program": "Registro de Viajeros",
+        "long_name": "Spanish consular traveller register",
+        "url": "https://www.exteriores.gob.es/es/ServiciosAlCiudadano/Paginas/Registro-Viajeros.aspx",
+        "blurb": "MAEC's free pre-travel registration for Spanish nationals.",
+    },
+    {
+        "country": "Netherlands",
+        "program": "BZ Information Service",
+        "long_name": "Travel advice subscription + 24/7 contact centre",
+        "url": "https://www.netherlandsworldwide.nl/travel-advice/venezuela",
+        "blurb": "Subscribe to Venezuela travel-advice updates; BZ's 24/7 contact centre (+31 247 247 247) is the Dutch consular crisis line.",
+    },
+    {
+        "country": "Switzerland",
+        "program": "Travel Admin app",
+        "long_name": "EDA Travel Admin",
+        "url": "https://www.eda.admin.ch/eda/en/fdfa/living-abroad/travel-advice.html",
+        "blurb": "EDA's mobile app lets Swiss citizens register a trip and receive country-specific alerts.",
+    },
+]
+
+
+# ----------------------------------------------------------------------------
 # 2) Embassies & consulates in Caracas
 # ----------------------------------------------------------------------------
 # Phone numbers are listed in international format. Caracas country code is
@@ -652,12 +735,12 @@ PRE_TRIP_CHECKLIST: list[dict] = [
     {
         "label": "Register with your embassy",
         "detail": (
-            "US travellers: enrol in STEP (Smart Traveler Enrollment Program). "
-            "UK travellers: register with FCDO. Other nationalities: file your "
-            "trip with your foreign ministry's traveller-registration system. "
-            "This is how your government locates you in a crisis."
+            "Free, takes 5 minutes. Once enrolled, your government can locate "
+            "and contact you in a crisis and pushes real-time security alerts. "
+            "US: STEP. UK: GOV.UK email alerts. Canada: ROCA. Most G20 countries "
+            "operate equivalent programs — see the full list at the top of this page."
         ),
-        "url": "https://step.state.gov/",
+        "url": "#register",
     },
     {
         "label": "Pre-arrange airport transfer & first night",
