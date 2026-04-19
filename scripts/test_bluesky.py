@@ -31,12 +31,18 @@ def main() -> int:
     test_url = "https://caracasresearch.com/"
     text = (
         f"Smoke test from caracasresearch.com pipeline @ "
-        f"{datetime.utcnow().isoformat()}Z. "
-        f"Will be deleted after verification.\n\n{test_url}"
+        f"{datetime.utcnow().isoformat()}Z. Will be deleted after verification."
     )
 
     print(f"Posting as @{client.handle} ...")
-    result = client.post(text=text, link_url=test_url)
+    thumb = client.upload_image_from_url("https://caracasresearch.com/static/og-image.png?v=3")
+    link_card = bluesky.LinkCard(
+        uri=test_url,
+        title="Caracas Research",
+        description="Daily Venezuelan investment, sanctions, and policy research.",
+        thumb_blob=thumb,
+    )
+    result = client.post(text=text, link_card=link_card)
 
     if result.success:
         print(f"OK posted: {result.post_url}")

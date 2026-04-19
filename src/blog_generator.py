@@ -60,6 +60,7 @@ You MUST return a single JSON object with these fields:
 - primary_sector (string, one of: mining, energy, oil_gas, real_estate, banking, sanctions, governance, fiscal, diplomatic, legal, agriculture, telecom, other)
 - key_takeaways (array of 3-5 short bullet sentences, plain text)
 - investor_implications (string, 80-160 chars, plain text, "what this means for capital deployment")
+- social_hook (string, 180-250 chars, plain text — the OPENING LINE of a social-media post about this story. Voice: one analyst messaging another over Slack. Surfaces the tension, the surprise, or the "why this matters" in a single beat. NEVER restate the title verbatim. NEVER use hashtags, emoji, exclamation marks, or marketing clichés like "game-changing", "groundbreaking", "must-read". Conversational but precise. Examples of the right register: "Caracas just gave the assembly an unusual seat at the table on the OFAC talks — first time since 2022.", "PDVSA quietly let the Eulen waiver lapse last week. Most of the desk hasn't noticed yet.")
 
 Do NOT use markdown. Do NOT wrap output in code fences. Output only the JSON object."""
 
@@ -292,6 +293,10 @@ def _persist_post(
     if isinstance(primary_sector, str):
         primary_sector = primary_sector[:80]
 
+    social_hook = (payload.get("social_hook") or "").strip()
+    if social_hook:
+        social_hook = social_hook[:280]
+
     post = BlogPost(
         source_table=source_table,
         source_id=source_id,
@@ -300,6 +305,7 @@ def _persist_post(
         subtitle=(payload.get("subtitle") or "")[:500],
         summary=(payload.get("summary") or "")[:600],
         body_html=body_html,
+        social_hook=social_hook or None,
         primary_sector=primary_sector,
         sectors_json=sectors,
         keywords_json=keywords,

@@ -302,22 +302,32 @@ def run_bluesky() -> dict:
         if client is None:
             return {"status": "skipped", "reason": "client init failed"}
 
+        # Upload the site's static OG image ONCE per run and reuse the
+        # blob ref for every post's link card. Every briefing currently
+        # shares the same OG image, so this saves N-1 uploads per cron.
+        # If upload fails the cards still render — just without a thumb.
+        og_image_url = f"{_site_base()}/static/og-image.png?v=3"
+        thumb_blob = client.upload_image_from_url(og_image_url)
+        if thumb_blob is None:
+            logger.warning("bluesky: og-image upload failed; posts will lack thumbnails")
+
         posted = 0
         failed = 0
         first_post_url: str | None = None
         for post in candidates:
             url = _blog_url(post)
-            keywords = post.keywords_json or []
-            if isinstance(keywords, str):
-                keywords = [k.strip() for k in keywords.split(",") if k.strip()]
 
             text = bluesky.compose_post(
+                social_hook=post.social_hook,
                 title=post.title or "",
-                summary=post.summary or post.subtitle or "",
-                url=url,
-                keywords=keywords,
             )
-            result = client.post(text=text, link_url=url)
+            link_card = bluesky.LinkCard(
+                uri=url,
+                title=(post.title or "")[:300],
+                description=(post.summary or post.subtitle or "")[:300],
+                thumb_blob=thumb_blob,
+            )
+            result = client.post(text=text, link_card=link_card)
             _record(
                 db,
                 channel=CHANNEL_BLUESKY,

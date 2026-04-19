@@ -16,6 +16,7 @@ from sqlalchemy import (
     JSON,
     UniqueConstraint,
 )
+from sqlalchemy import inspect as sa_inspect, text as sa_text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from src.config import settings
@@ -182,6 +183,14 @@ class BlogPost(Base):
     summary = Column(Text, nullable=True)
     body_html = Column(Text, nullable=False)
 
+    # Conversational, ~180-250 char "social hook" — written from one
+    # analyst to another. Surfaces the tension or insight without
+    # restating the title. Generated in the same LLM call as the post
+    # body for new briefings; backfilled separately for old ones.
+    # Used by social syndication (Bluesky etc.) so posts read like a
+    # human wrote them rather than an RSS bot.
+    social_hook = Column(Text, nullable=True)
+
     primary_sector = Column(String(80), nullable=True, index=True)
     sectors_json = Column(JSON, nullable=True)
     keywords_json = Column(JSON, nullable=True)
@@ -294,7 +303,13 @@ _db_initialized = False
 
 
 def init_db(*, force: bool = False):
-    """Create tables once per process, not once per request."""
+    """Create tables once per process, not once per request.
+
+    Also runs lightweight, idempotent column-additions for ALTERations
+    that can't be expressed by `create_all` on a pre-existing table.
+    We deliberately stop short of a full Alembic setup — for a single-
+    writer schema this stays simpler and safer.
+    """
     global _db_initialized
     if _db_initialized and not force:
         return
@@ -302,4 +317,28 @@ def init_db(*, force: bool = False):
         if _db_initialized and not force:
             return
         Base.metadata.create_all(engine)
+        _ensure_columns()
         _db_initialized = True
+
+
+def _ensure_columns() -> None:
+    """Add columns that were introduced after the table was first
+    created. Cross-DB (SQLite + Postgres) safe — uses the SQLAlchemy
+    inspector to check for existence before issuing an ALTER.
+    """
+    insp = sa_inspect(engine)
+
+    additions = [
+        ("blog_posts", "social_hook", "TEXT"),
+    ]
+
+    for table_name, column_name, column_type in additions:
+        if table_name not in insp.get_table_names():
+            continue
+        existing = {c["name"] for c in insp.get_columns(table_name)}
+        if column_name in existing:
+            continue
+        with engine.begin() as conn:
+            conn.execute(
+                sa_text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+            )
