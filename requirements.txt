@@ -23,3 +23,4 @@ gunicorn>=22.0
 google-auth>=2.30
 requests>=2.31
 reportlab>=4.0
+internetarchive>=4.1

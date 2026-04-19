@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 from typing import Iterable
 
 from src.config import settings
-from src.distribution import bluesky, google_indexing, indexnow
+from src.distribution import bluesky, google_indexing, indexnow, internet_archive
 from src.models import BlogPost, DistributionLog, SessionLocal, init_db
 
 
@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 CHANNEL_GOOGLE_INDEXING = "google_indexing"
 CHANNEL_INDEXNOW = "indexnow"
 CHANNEL_BLUESKY = "bluesky"
+CHANNEL_INTERNET_ARCHIVE = "internet_archive"
 
 # Don't re-ping the same URL on the same channel within this window.
 # Google's docs say frequent re-notifications for unchanged URLs are
@@ -363,11 +364,82 @@ def run_bluesky() -> dict:
         db.close()
 
 
+def run_internet_archive() -> dict:
+    """Upload today's daily Investor Tearsheet PDF to Internet Archive.
+
+    Identifier (`caracas-research-daily-tearsheet-YYYY-MM-DD`) is
+    deterministic per-day, and IA's upload semantics are
+    upsert-in-place — so re-running on the same day is safe and
+    overwrites the existing file rather than creating a duplicate item.
+
+    Cooldown: we still record one DistributionLog row per
+    successful upload and skip same-day re-uploads to avoid wasting
+    network on cron re-runs.
+    """
+    if not internet_archive.is_enabled():
+        return {"status": "skipped", "reason": "no credentials"}
+
+    init_db()
+    db = SessionLocal()
+    try:
+        # Same 23h cooldown as the other "ping" channels so a re-fire
+        # of the cron doesn't double-upload to IA. The cooldown key is
+        # the IA details URL, which is unique per day.
+        already = _recent_pinged_urls(db, CHANNEL_INTERNET_ARCHIVE, _REPING_COOLDOWN)
+
+        from src.distribution.tearsheet import (
+            collect_tearsheet_data,
+            render_daily_tearsheet_pdf,
+        )
+
+        data = collect_tearsheet_data()
+        today = data["generated_at"].date()
+        identifier = internet_archive.identifier_for_date(today)
+        details_url = f"https://archive.org/details/{identifier}"
+
+        if details_url in already:
+            return {"status": "ok", "uploaded": 0, "reason": "already uploaded today"}
+
+        pdf_bytes = render_daily_tearsheet_pdf(data)
+        result = internet_archive.upload_tearsheet(pdf_bytes, today)
+
+        _record(
+            db,
+            channel=CHANNEL_INTERNET_ARCHIVE,
+            url=result.details_url or details_url,
+            success=result.success,
+            response_code=result.response_code,
+            response_snippet=result.response_snippet,
+            entity_type="tearsheet",
+            entity_id=None,
+        )
+        db.commit()
+
+        return {
+            "status": "ok" if result.success else "error",
+            "uploaded": 1 if result.success else 0,
+            "identifier": result.identifier,
+            "details_url": result.details_url,
+            "download_url": result.download_url,
+            "response_code": result.response_code,
+        }
+    except Exception as exc:
+        logger.exception("internet archive runner failed: %s", exc)
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return {"status": "error", "error": str(exc)}
+    finally:
+        db.close()
+
+
 def run_all() -> dict:
     """Run every enabled distribution channel. Returns per-channel summary."""
     return {
         CHANNEL_GOOGLE_INDEXING: run_google_indexing(),
         CHANNEL_INDEXNOW: run_indexnow(),
         CHANNEL_BLUESKY: run_bluesky(),
+        CHANNEL_INTERNET_ARCHIVE: run_internet_archive(),
         # Future: mastodon, telegram, linkedin, threads, medium
     }

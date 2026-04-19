@@ -116,6 +116,22 @@ class Settings(BaseSettings):
     # day so this is well within the daily quota.
     google_indexing_max_per_run: int = 50
 
+    # ── Distribution: Internet Archive (archive.org) ───────────────────
+    # S3-like access keys from https://archive.org/account/s3.php
+    # Both must be set for the channel to activate; either blank → channel
+    # is silently skipped.
+    internet_archive_access_key: str = ""
+    internet_archive_secret_key: str = ""
+    # The IA collection to deposit into. 'opensource' is the catch-all
+    # uncurated collection; getting into a curated one requires a manual
+    # request to IA staff. Override only if/when we get accepted into
+    # one (e.g. 'opensource_periodicals' for a serial of issues).
+    internet_archive_collection: str = "opensource"
+    # Hard cap per cron run — protects against runaway uploads if a bug
+    # ever produces 1000 tearsheets in one go. Daily cron only ever
+    # publishes one per run so 5 is plenty of headroom.
+    internet_archive_max_per_run: int = 5
+
     # ── Distribution: Bluesky (atproto) ────────────────────────────────
     # Bluesky handle (e.g. "caracasresearch.bsky.social") and an app
     # password (NOT the main account password) generated under Settings →
