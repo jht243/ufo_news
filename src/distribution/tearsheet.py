@@ -287,6 +287,12 @@ def _header_block(generated_at: datetime, styles) -> list:
     )
     t.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        # Strip the default cell padding so the masthead text shares the
+        # exact same left rail as the subtitle, section bodies, and
+        # footer below — everything aligns flush to the page margin.
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
     ]))
 
