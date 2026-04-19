@@ -322,6 +322,27 @@ def _persist_post(
     db.add(post)
     db.commit()
     db.refresh(post)
+
+    # Render the per-briefing OG card and persist its bytes on the row.
+    # Best-effort: a render failure should never block the blog itself
+    # from being saved (a missing card just falls back to the generic
+    # site-wide OG image at request time).
+    try:
+        from src.og_image import latest_bcv_usd, render_briefing_card
+
+        png = render_briefing_card(
+            title=post.title or "",
+            category=post.primary_sector,
+            published_date=post.published_date,
+            bcv_usd=latest_bcv_usd(),
+        )
+        if png:
+            post.og_image_bytes = png
+            db.commit()
+            db.refresh(post)
+    except Exception as exc:
+        logger.warning("blog_generator: og card render failed for slug=%s: %s", post.slug, exc)
+
     return post
 
 

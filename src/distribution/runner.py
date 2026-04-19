@@ -303,14 +303,15 @@ def run_bluesky() -> dict:
         if client is None:
             return {"status": "skipped", "reason": "client init failed"}
 
-        # Upload the site's static OG image ONCE per run and reuse the
-        # blob ref for every post's link card. Every briefing currently
-        # shares the same OG image, so this saves N-1 uploads per cron.
-        # If upload fails the cards still render — just without a thumb.
-        og_image_url = f"{_site_base()}/static/og-image.png?v=3"
-        thumb_blob = client.upload_image_from_url(og_image_url)
-        if thumb_blob is None:
-            logger.warning("bluesky: og-image upload failed; posts will lack thumbnails")
+        # Per-post OG cards: each briefing has its own pre-rendered
+        # 1200x630 PNG persisted on `BlogPost.og_image_bytes`. We
+        # upload that blob fresh per post (Bluesky stores blobs by
+        # content hash, so identical bytes would dedupe anyway, but
+        # ours are unique per briefing). For any older post that
+        # hasn't been backfilled yet, fall back to the static tile —
+        # uploaded lazily and cached for the rest of this run.
+        static_thumb_blob: dict | None = None
+        static_thumb_attempted = False
 
         posted = 0
         failed = 0
@@ -322,6 +323,23 @@ def run_bluesky() -> dict:
                 social_hook=post.social_hook,
                 title=post.title or "",
             )
+
+            thumb_blob: dict | None = None
+            if post.og_image_bytes:
+                thumb_blob = client.upload_blob(post.og_image_bytes, mime_type="image/png")
+                if thumb_blob is None:
+                    logger.warning(
+                        "bluesky: per-post og upload failed for slug=%s; falling back",
+                        post.slug,
+                    )
+            if thumb_blob is None:
+                if not static_thumb_attempted:
+                    static_thumb_attempted = True
+                    static_thumb_blob = client.upload_image_from_url(
+                        f"{_site_base()}/static/og-image.png?v=3"
+                    )
+                thumb_blob = static_thumb_blob
+
             link_card = bluesky.LinkCard(
                 uri=url,
                 title=(post.title or "")[:300],

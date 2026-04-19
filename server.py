@@ -2122,6 +2122,55 @@ def tearsheet_dated(date_str: str):
     return resp
 
 
+@app.route("/og/briefing/<slug>.png")
+def briefing_og_image(slug: str):
+    """Serve the per-briefing Open Graph card.
+
+    Each BlogPost has its own 1200x630 PNG (rendered at creation time
+    by src/og_image.py and persisted on `BlogPost.og_image_bytes`) so
+    every share preview shows the briefing's actual headline rather
+    than one generic site-wide tile.
+
+    Cached aggressively — these never change once written. If a post
+    is missing bytes (e.g. an older row not yet backfilled), we fall
+    back to the static homepage OG image so previews still render.
+    """
+    try:
+        from src.models import BlogPost, SessionLocal, init_db
+
+        init_db()
+        db = SessionLocal()
+        try:
+            row = (
+                db.query(BlogPost.og_image_bytes)
+                .filter(BlogPost.slug == slug)
+                .first()
+            )
+            if row is None:
+                abort(404)
+            png_bytes = row[0]
+            if not png_bytes:
+                # No per-post bytes yet — redirect to the static fallback
+                # so the share preview still renders something on-brand.
+                fallback = f"{settings.site_url.rstrip('/')}/static/og-image.png?v=3"
+                resp = redirect(fallback, code=302)
+                resp.headers["Cache-Control"] = "public, max-age=300"
+                return resp
+
+            resp = Response(png_bytes, mimetype="image/png")
+            # OG cards are content-addressed by slug and never mutate;
+            # let CDNs and social-media link unfurlers cache forever.
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+            return resp
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("og card serve failed for slug=%s: %s", slug, exc)
+        abort(500)
+
+
 @app.route("/<key>.txt")
 def indexnow_key_file(key: str):
     """

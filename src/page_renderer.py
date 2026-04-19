@@ -52,7 +52,15 @@ def render_blog_post(post, *, related: list | None = None) -> str:
     """
     base = _base_url()
     canonical = f"{base}/briefing/{post.slug}"
-    og_image = f"{base}/static/og-image.png?v=3"
+    # Prefer the per-briefing OG card (rendered at creation time and
+    # served from /og/briefing/<slug>.png). Fall back to the generic
+    # site-wide tile for any briefing that hasn't been rendered yet.
+    has_og_bytes = bool(getattr(post, "og_image_bytes", None))
+    og_image = (
+        f"{base}/og/briefing/{post.slug}.png"
+        if has_og_bytes
+        else f"{base}/static/og-image.png?v=3"
+    )
 
     keywords = post.keywords_json or []
     if isinstance(keywords, str):

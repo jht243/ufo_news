@@ -14,6 +14,7 @@ from sqlalchemy import (
     Enum,
     Boolean,
     JSON,
+    LargeBinary,
     UniqueConstraint,
 )
 from sqlalchemy import inspect as sa_inspect, text as sa_text
@@ -191,6 +192,14 @@ class BlogPost(Base):
     # human wrote them rather than an RSS bot.
     social_hook = Column(Text, nullable=True)
 
+    # Pre-rendered 1200x630 PNG bytes of the briefing's per-post Open
+    # Graph card. Rendered once at blog-creation time (and backfilled
+    # for old posts via scripts/backfill_og_images.py) so every share
+    # preview shows the briefing's own headline rather than a generic
+    # site-wide tile. Served by /og/briefing/<slug>.png. Typically
+    # ~50-80 KB; well under any DB row limit.
+    og_image_bytes = Column(LargeBinary, nullable=True)
+
     primary_sector = Column(String(80), nullable=True, index=True)
     sectors_json = Column(JSON, nullable=True)
     keywords_json = Column(JSON, nullable=True)
@@ -327,9 +336,14 @@ def _ensure_columns() -> None:
     inspector to check for existence before issuing an ALTER.
     """
     insp = sa_inspect(engine)
+    dialect = engine.dialect.name
+
+    # Per-dialect column type. SQLite uses BLOB for binary, Postgres BYTEA.
+    blob_type = "BYTEA" if dialect == "postgresql" else "BLOB"
 
     additions = [
         ("blog_posts", "social_hook", "TEXT"),
+        ("blog_posts", "og_image_bytes", blob_type),
     ]
 
     for table_name, column_name, column_type in additions:
