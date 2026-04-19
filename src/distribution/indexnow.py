@@ -31,7 +31,16 @@ logger = logging.getLogger(__name__)
 
 _ENDPOINT = "https://api.indexnow.org/indexnow"
 
-INDEXNOW_KEY = "0b2fff2a4cb56ba2c10382745f51cdd8"
+
+def _key() -> str:
+    """Read the IndexNow key from settings at call time (so env-var
+    overrides work without re-importing the module)."""
+    return (settings.indexnow_key or "").strip()
+
+
+# Backwards-compat alias kept so existing imports (e.g. the Flask key-file
+# route in server.py) keep working. New code should call _key().
+INDEXNOW_KEY = _key()
 
 
 @dataclass
@@ -51,19 +60,27 @@ def _host() -> str:
 
 
 def _key_location() -> str:
-    return f"{settings.site_url.rstrip('/')}/{INDEXNOW_KEY}.txt"
+    return f"{settings.site_url.rstrip('/')}/{_key()}.txt"
 
 
 def submit_urls(urls: Iterable[str]) -> IndexNowResult:
     """Submit one or more URLs in a single POST. The protocol accepts up
     to 10,000 URLs per call but we typically pass a handful per cron."""
+    key = _key()
+    if not key:
+        logger.info("indexnow: skipping — no INDEXNOW_KEY configured")
+        return IndexNowResult(
+            success=False, status_code=None,
+            response_snippet="no INDEXNOW_KEY configured", submitted=0,
+        )
+
     url_list = [u for u in urls if u]
     if not url_list:
         return IndexNowResult(success=True, status_code=None, response_snippet="no urls", submitted=0)
 
     payload = {
         "host": _host(),
-        "key": INDEXNOW_KEY,
+        "key": key,
         "keyLocation": _key_location(),
         "urlList": url_list,
     }

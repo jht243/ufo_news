@@ -2095,10 +2095,11 @@ def indexnow_key_file(key: str):
 
     We only serve our one known key; any other /<thing>.txt 404s.
     """
-    from src.distribution.indexnow import INDEXNOW_KEY
+    from src.config import settings
 
-    if key == INDEXNOW_KEY:
-        return Response(INDEXNOW_KEY, mimetype="text/plain")
+    configured = (settings.indexnow_key or "").strip()
+    if configured and key == configured:
+        return Response(configured, mimetype="text/plain")
     abort(404)
 
 

@@ -89,6 +89,14 @@ class Settings(BaseSettings):
     blog_gen_lookback_days: int = 14
     blog_gen_max_words: int = 900
 
+    # ── Distribution: IndexNow (Bing, Yandex, Seznam, Naver, Mojeek) ──
+    # The IndexNow key — generated in Bing Webmaster Tools at
+    # bing.com/indexnow/getstarted. The key is NOT a secret: it's
+    # publicly hosted at /{key}.txt to prove domain ownership, and
+    # included in every API call. The default below is a development
+    # placeholder; production must override via INDEXNOW_KEY env var.
+    indexnow_key: str = "0b2fff2a4cb56ba2c10382745f51cdd8"
+
     # ── Distribution: Google Indexing API ──────────────────────────────
     # Service-account JSON pasted as a single env var (the entire JSON
     # blob, including the curly braces and the embedded \n in
