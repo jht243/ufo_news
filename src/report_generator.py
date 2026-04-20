@@ -146,6 +146,9 @@ def generate_report(output_path: Path | None = None) -> Path:
             all_sectors=SECTOR_OPTIONS,
             current_year=date.today().year,
             generated_at=generated_dt.strftime("%Y-%m-%d %H:%M UTC"),
+            tearsheet_date_label=(
+                f"{generated_dt.month}/{generated_dt.day}/{generated_dt.year % 100:02d}"
+            ),
             seo=seo,
             jsonld=jsonld,
         )
@@ -878,6 +881,63 @@ def _refresh_calendar_label(
     return raw_urgency, raw_date_label
 
 
+_MONTH_ABBR_TO_NUM = {
+    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
+    "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
+}
+
+
+def _parse_event_sort_date(date_label: str, published: date | None) -> date | None:
+    """Best-effort extraction of a sortable event date from a date_label.
+
+    The LLM and our own helpers serialize event dates as short strings
+    like "MAY 1 — IMMINENT", "APR 14 – APR 21", "APR 17 (3 DAYS AGO)",
+    "TODAY", "YESTERDAY", "Pending Promulgation", "Ongoing", "2026
+    Target". We only need a key for sorting; for ranges we use the
+    start date, and for non-dated labels we return None (those sort
+    to the end of the calendar).
+
+    Year inference: if the label has an explicit 4-digit year we use
+    it; otherwise we anchor to the source article's published date and
+    pick the year that puts the event closest to that anchor (handles
+    Dec/Jan boundary crossings).
+    """
+    if not date_label:
+        return None
+
+    label = date_label.upper()
+
+    if re.search(r"\bTODAY\b", label):
+        return date.today()
+    if re.search(r"\bYESTERDAY\b", label):
+        return date.today() - timedelta(days=1)
+
+    m = re.search(r"\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)\s+(\d{1,2})\b", label)
+    if not m:
+        return None
+
+    month = _MONTH_ABBR_TO_NUM[m.group(1)]
+    day = int(m.group(2))
+
+    explicit_year = re.search(r"\b(20\d{2})\b", label)
+    if explicit_year:
+        try:
+            return date(int(explicit_year.group(1)), month, day)
+        except ValueError:
+            return None
+
+    anchor = published or date.today()
+    best: date | None = None
+    for candidate_year in (anchor.year - 1, anchor.year, anchor.year + 1):
+        try:
+            cand = date(candidate_year, month, day)
+        except ValueError:
+            continue
+        if best is None or abs((cand - anchor).days) < abs((best - anchor).days):
+            best = cand
+    return best
+
+
 def _relative_date_label(d: date, age_days: int) -> str:
     """Short human label for a past date, mirroring the LLM style.
 
@@ -987,15 +1047,19 @@ def _build_calendar(ext_articles, assembly_news) -> list[dict]:
             len(candidates),
         )
 
-    # Sort: urgency tier first, then relevance score (high first),
-    # then newest published date.
-    candidates.sort(
-        key=lambda c: (
-            _URGENCY_ORDER.get(c["urgency"], 99),
-            -c.get("_relevance", 0),
-            -((c["_published"] - date.min).days if c["_published"] else 0),
-        )
-    )
+    # Sort chronologically by the actual event date (parsed out of
+    # date_label). Events without a parseable date — "Ongoing",
+    # "Pending Promulgation", "2026 Target" — fall to the bottom,
+    # ordered amongst themselves by urgency tier so standing items
+    # land in a stable spot. Within the dated bucket we go ascending
+    # so the closest-in-time items appear first.
+    def _sort_key(c: dict) -> tuple:
+        ev_date = _parse_event_sort_date(c["date_label"], c.get("_published"))
+        if ev_date is None:
+            return (1, _URGENCY_ORDER.get(c["urgency"], 99), 0)
+        return (0, ev_date.toordinal(), -c.get("_relevance", 0))
+
+    candidates.sort(key=_sort_key)
 
     cleaned = []
     for c in candidates[:8]:
