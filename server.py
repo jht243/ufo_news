@@ -1406,14 +1406,33 @@ def sanctions_tracker():
 
             base = _base_url()
             canonical = f"{base}/sanctions-tracker"
+            # Title + description rewritten April 2026 to match the
+            # actual GSC top query: "ofac sdn list current military,
+            # economic, diplomatic" — 22 impressions over 3 months at
+            # avg position 6.2, 0% CTR. The previous title
+            # ("OFAC Venezuela Sanctions Tracker — N active
+            # designations") didn't surface any of those query terms,
+            # so even a #6 SERP placement converted at 0%. New copy
+            # leads with the searcher's exact vocabulary ("OFAC SDN
+            # List", sector words, current month/year freshness) so
+            # the snippet matches what they typed.
             seo = {
-                "title": f"OFAC Venezuela Sanctions Tracker — {stats['total']} active designations",
-                "description": (
-                    f"Live tracker of {stats['total']} US Treasury OFAC SDN designations "
-                    "under Venezuela-related programs. Search by name, vessel, aircraft, or "
-                    "program. Refreshed twice daily."
+                "title": (
+                    f"OFAC SDN List — Venezuela Sanctions: {stats['total']} Current "
+                    "Military, Economic & Diplomatic Designations"
                 ),
-                "keywords": "OFAC Venezuela sanctions, SDN list Venezuela, PDVSA sanctions, Venezuela vessel sanctions, OFAC SDN search",
+                "description": (
+                    f"Current OFAC SDN List for Venezuela: {stats['total']} active US Treasury "
+                    "designations across military, economic, and diplomatic programs. "
+                    "Search every individual, entity, vessel, and aircraft. Refreshed twice "
+                    "daily from the official OFAC source."
+                ),
+                "keywords": (
+                    "OFAC SDN list Venezuela, OFAC Venezuela sanctions, "
+                    "Venezuela military sanctions, Venezuela economic sanctions, "
+                    "Venezuela diplomatic designations, PDVSA sanctions, "
+                    "Venezuela vessel sanctions, OFAC SDN search current"
+                ),
                 "canonical": canonical,
                 "site_name": _s.site_name,
                 "site_url": base,
@@ -3462,6 +3481,78 @@ def sitemap_xml():
             # concentrates on the briefings, sector pages, and pillar
             # surfaces. To re-add either bucket, restore the loops
             # below from git history (see commit pruning the sitemap).
+            #
+            # EXCEPTION — `_HIGH_DEMAND_PROFILE_SLUGS`: a tiny whitelist
+            # of leaf URLs that have already proven they answer real
+            # GSC queries. Adding them back to the sitemap is safe (it
+            # doesn't undo the 917-URL prune) and tells Google "these
+            # specific leaves matter — index them first". Only add a
+            # slug here when GSC shows the URL has actually received
+            # impressions; un-validated entries are a regression to
+            # the pre-prune crawl-budget problem. To extend, append
+            # the verified-live path; the loop below filters out any
+            # entries whose page would 404, so a stale entry is a
+            # silent no-op rather than a broken sitemap.
+
+            _HIGH_DEMAND_PROFILE_SLUGS = (
+                # Source: GSC last 90 days (April 2026 audit). Each URL
+                # had non-zero impressions on a specific name/company
+                # query but was dropped by the F prune. Slugs verified
+                # live before commit — see the curl run in the audit
+                # transcript dated 2026-04-20 if you need provenance.
+                "/sanctions/individuals/carretero-napolitano-vicente-luis",
+                "/companies/jacobs-solutions-j/venezuela-exposure",
+                "/companies/simon-property-spg/venezuela-exposure",
+                "/companies/citizens-financial-cfg/venezuela-exposure",
+                "/companies/franklin-resources-ben/venezuela-exposure",
+            )
+            # Verify each whitelisted slug actually resolves to a live
+            # page before advertising it. SDN profiles → looked up via
+            # get_profile(bucket, slug); company exposure pages → looked
+            # up via find_company(slug). A miss is logged + skipped, so
+            # a stale slug silently drops out of the sitemap on the next
+            # request instead of leaving a 404 advertised to Google.
+            try:
+                from src.data.sdn_profiles import get_profile as _get_sdn_profile
+            except Exception as exc:
+                logger.warning("sitemap whitelist: SDN module unavailable: %s", exc)
+                _get_sdn_profile = None  # type: ignore
+
+            try:
+                from src.data.sp500_companies import find_company as _find_company
+            except Exception as exc:
+                logger.warning("sitemap whitelist: SP500 module unavailable: %s", exc)
+                _find_company = None  # type: ignore
+
+            for path in _HIGH_DEMAND_PROFILE_SLUGS:
+                is_live = False
+                if path.startswith("/sanctions/") and _get_sdn_profile is not None:
+                    parts = path.strip("/").split("/")
+                    if len(parts) == 3:
+                        _, bucket, slug = parts
+                        try:
+                            is_live = _get_sdn_profile(bucket, slug) is not None
+                        except Exception:
+                            is_live = False
+                elif path.startswith("/companies/") and _find_company is not None:
+                    parts = path.strip("/").split("/")
+                    if len(parts) == 3 and parts[2] == "venezuela-exposure":
+                        try:
+                            is_live = _find_company(parts[1]) is not None
+                        except Exception:
+                            is_live = False
+                if not is_live:
+                    logger.warning(
+                        "sitemap whitelist: %s does not resolve, skipping",
+                        path,
+                    )
+                    continue
+                dynamic_urls.append({
+                    "loc": f"{base}{path}",
+                    "lastmod": today_iso,
+                    "changefreq": "weekly",
+                    "priority": "0.7",
+                })
 
             ext_articles = (
                 db.query(ExternalArticleEntry)
