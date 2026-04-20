@@ -297,6 +297,26 @@ def _persist_post(
     if social_hook:
         social_hook = social_hook[:280]
 
+    # Normalise the LLM's key_takeaways array into a clean list of
+    # 3-5 short plain-text bullets. The prompt already asks for this,
+    # but we defensively trim, strip tags, and cap length so a
+    # malformed response can never break the template.
+    raw_takeaways = payload.get("key_takeaways") or []
+    if isinstance(raw_takeaways, str):
+        raw_takeaways = [raw_takeaways]
+    takeaways: list[str] = []
+    for t in raw_takeaways:
+        if not isinstance(t, str):
+            continue
+        cleaned = re.sub(r"<[^>]+>", "", t).strip()
+        if not cleaned:
+            continue
+        if len(cleaned) > 300:
+            cleaned = cleaned[:300].rstrip()
+        takeaways.append(cleaned)
+        if len(takeaways) >= 5:
+            break
+
     post = BlogPost(
         source_table=source_table,
         source_id=source_id,
@@ -310,6 +330,7 @@ def _persist_post(
         sectors_json=sectors,
         keywords_json=keywords,
         related_slugs_json=[],
+        takeaways_json=takeaways or None,
         word_count=word_count,
         reading_minutes=reading_minutes,
         published_date=item.published_date,

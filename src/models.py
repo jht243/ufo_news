@@ -205,6 +205,18 @@ class BlogPost(Base):
     keywords_json = Column(JSON, nullable=True)
     related_slugs_json = Column(JSON, nullable=True)
 
+    # 3-5 short "Key takeaways" bullets rendered as a scannable aside
+    # at the top of /briefing/<slug>. Generated in the same LLM call
+    # as the post body (src/blog_generator.py already emits a
+    # `key_takeaways` array in its JSON schema) and backfilled for
+    # legacy posts via scripts/backfill_takeaways.py. Surfaced on-
+    # page by templates/blog_post.html.j2 and consumed by the
+    # SEO/readability playbook: scannable bullets correlate with
+    # better on-page CTR and time-on-page, both ranking signals
+    # Google uses to decide whether to promote a "crawled - not
+    # indexed" briefing into the index.
+    takeaways_json = Column(JSON, nullable=True)
+
     word_count = Column(Integer, nullable=True)
     reading_minutes = Column(Integer, nullable=True)
 
@@ -372,10 +384,14 @@ def _ensure_columns() -> None:
 
     # Per-dialect column type. SQLite uses BLOB for binary, Postgres BYTEA.
     blob_type = "BYTEA" if dialect == "postgresql" else "BLOB"
+    # SQLAlchemy's JSON type maps to JSONB on Postgres and TEXT on SQLite.
+    # For idempotent ALTERs we mirror that ourselves.
+    json_type = "JSONB" if dialect == "postgresql" else "TEXT"
 
     additions = [
         ("blog_posts", "social_hook", "TEXT"),
         ("blog_posts", "og_image_bytes", blob_type),
+        ("blog_posts", "takeaways_json", json_type),
     ]
 
     for table_name, column_name, column_type in additions:

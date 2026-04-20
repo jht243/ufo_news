@@ -123,7 +123,27 @@ def render_blog_post(post, *, related: list | None = None) -> str:
         ensure_ascii=False,
     )
 
+    # Pull the stored "Key takeaways" bullets. Persisted in
+    # blog_posts.takeaways_json at generation time by
+    # src/blog_generator.py, and backfilled for legacy posts by
+    # scripts/backfill_takeaways.py. Defensive: accept either a
+    # plain list or a JSON-encoded string (some older DB engines
+    # stored JSON columns as strings), and coerce every element
+    # to a trimmed plain-text bullet before it hits the template.
+    raw_takeaways = getattr(post, "takeaways_json", None) or []
+    if isinstance(raw_takeaways, str):
+        try:
+            raw_takeaways = json.loads(raw_takeaways)
+        except Exception:
+            raw_takeaways = [raw_takeaways]
     takeaways: list[str] = []
+    if isinstance(raw_takeaways, list):
+        for t in raw_takeaways:
+            if not isinstance(t, str):
+                continue
+            s = t.strip()
+            if s:
+                takeaways.append(s)
 
     template = _env.get_template("blog_post.html.j2")
     return template.render(
