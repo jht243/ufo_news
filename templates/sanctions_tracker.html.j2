@@ -147,6 +147,13 @@
     and the <a href="/tools/ofac-venezuela-general-licenses">general license lookup</a>.
   </p>
 
+  {% from "_recent_briefings.html.j2" import recent_briefings_rail %}
+  {{ recent_briefings_rail(
+       recent_briefings,
+       heading="Latest sanctions analysis",
+       intro="Daily briefings on OFAC enforcement, license updates, and material designations affecting investors.",
+  ) }}
+
   {% from "_cluster_nav.html.j2" import cluster_nav %}
   {{ cluster_nav(cluster_ctx) }}
 

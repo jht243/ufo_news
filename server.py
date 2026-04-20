@@ -271,6 +271,32 @@ def subscribe():
         return jsonify({"ok": False, "error": "Service unavailable"}), 503
 
 
+def _fetch_recent_briefings(limit: int = 5):
+    """Pull the N most-recent BlogPost rows for "Latest analysis" rails.
+
+    Used by tool pages and other steady-traffic surfaces to feed
+    crawl signal into individual /briefing/<slug> pages. Returns an
+    empty list on any DB hiccup so the caller can pass the result
+    unconditionally to the template (the rail partial no-ops on empty).
+    """
+    try:
+        from src.models import BlogPost, SessionLocal, init_db
+        init_db()
+        db = SessionLocal()
+        try:
+            return (
+                db.query(BlogPost)
+                .order_by(BlogPost.published_date.desc())
+                .limit(limit)
+                .all()
+            )
+        finally:
+            db.close()
+    except Exception as exc:
+        logger.warning("recent_briefings fetch failed: %s", exc)
+        return []
+
+
 def _tool_seo_jsonld(*, slug: str, title: str, description: str, keywords: str, faq: list[dict] | None = None, dataset: dict | None = None):
     """Build standard SEO + JSON-LD payload for a /tools/* page."""
     from src.page_renderer import _base_url, _iso, settings as _s
@@ -525,6 +551,7 @@ def tool_roi_calculator():
             seo=seo,
             jsonld=jsonld,
             current_year=_date.today().year,
+            recent_briefings=_fetch_recent_briefings(),
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
@@ -731,6 +758,7 @@ def tool_ofac_sanctions_checker():
             jsonld=jsonld,
             cluster_ctx=cluster_ctx,
             current_year=_date.today().year,
+            recent_briefings=_fetch_recent_briefings(),
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
@@ -1010,7 +1038,13 @@ def tools_index():
         }, ensure_ascii=False)
 
         template = _env.get_template("tools_index.html.j2")
-        html = template.render(tools=tools, seo=seo, jsonld=jsonld, current_year=_date.today().year)
+        html = template.render(
+            tools=tools,
+            seo=seo,
+            jsonld=jsonld,
+            current_year=_date.today().year,
+            recent_briefings=_fetch_recent_briefings(),
+        )
         return Response(html, mimetype="text/html")
     except HTTPException:
         raise
@@ -1429,11 +1463,34 @@ def sanctions_tracker():
                 logger.warning("sanctions tracker: sector_stats lookup failed: %s", exc)
                 sector_stats_payload = None
 
+            # "Latest sanctions analysis" rail — surfaces 5 most-recent
+            # briefings that mention sanctions / OFAC / Venezuela-program
+            # actions so the tracker page provides crawl signal into
+            # individual /briefing/<slug> pages. Without this, briefings
+            # only have inbound links from the chronological /briefing
+            # index, which Google deprioritises as the index ages.
+            from src.models import BlogPost as _BlogPost
+            recent_sanctions_briefings = (
+                db.query(_BlogPost)
+                .filter(
+                    (_BlogPost.primary_sector == "governance")
+                    | (_BlogPost.primary_sector == "sanctions")
+                    | (_BlogPost.primary_sector == "energy")
+                    | (_BlogPost.title.ilike("%sanction%"))
+                    | (_BlogPost.title.ilike("%OFAC%"))
+                    | (_BlogPost.title.ilike("%PDVSA%"))
+                )
+                .order_by(_BlogPost.published_date.desc())
+                .limit(5)
+                .all()
+            )
+
             template = _env.get_template("sanctions_tracker.html.j2")
             html = template.render(
                 sdn_entries=sdn_entries,
                 stats=stats,
                 sector_stats=sector_stats_payload,
+                recent_briefings=recent_sanctions_briefings,
                 seo=seo,
                 jsonld=jsonld,
                 cluster_ctx=cluster_ctx,
@@ -3383,40 +3440,20 @@ def sitemap_xml():
                     "priority": priority,
                 })
 
-            # Per-SDN profile URLs — every OFAC Venezuela-program designation
-            # gets its own /sanctions/<bucket>/<slug> page. We feed them all
-            # to Google/Bing through the sitemap so the entire 410-page corpus
-            # gets discovered + crawled fast (without waiting for crawlers
-            # to walk inbound links from the index pages).
-            try:
-                from src.data.sdn_profiles import list_all_profiles
-                for p in list_all_profiles():
-                    dynamic_urls.append({
-                        "loc": f"{base}{p.url_path}",
-                        "lastmod": p.designation_date or today_iso,
-                        "changefreq": "monthly",
-                        "priority": "0.6",
-                    })
-            except Exception as exc:
-                logger.warning("sitemap: failed to enumerate SDN profiles: %s", exc)
-
-            # Per-company Venezuela-exposure URLs — one /companies/<slug>/
-            # venezuela-exposure entry per S&P 500 ticker. This is the
-            # long-tail SEO bet: even when the answer is "no exposure",
-            # the page exists and ranks for "{Company} Venezuela exposure"
-            # and similar queries (Simon Property, Franklin Resources,
-            # etc.) that we don't otherwise serve.
-            try:
-                from src.data.company_exposure import companies_for_sitemap
-                for entry in companies_for_sitemap():
-                    dynamic_urls.append({
-                        "loc": f"{base}{entry['url_path']}",
-                        "lastmod": today_iso,
-                        "changefreq": "weekly",
-                        "priority": "0.55",
-                    })
-            except Exception as exc:
-                logger.warning("sitemap: failed to enumerate company pages: %s", exc)
+            # NOTE: Per-SDN profile (/sanctions/<bucket>/<slug>) and per-
+            # company exposure (/companies/<slug>/venezuela-exposure) URLs
+            # are deliberately OMITTED from the sitemap. Both surfaces
+            # together added ~917 long-tail templated URLs (414 SDN +
+            # 503 S&P 500 companies) that diluted Google's crawl budget
+            # — at the time of pruning the site had 1,014 URLs in the
+            # sitemap and only ~10 indexed. The pages stay live and
+            # crawlable; they're discoverable via the bucket index
+            # pages (/sanctions/individuals etc.) and the /companies
+            # index, so Google can still walk to them. We just stop
+            # *advertising* every leaf to Google so crawl budget
+            # concentrates on the briefings, sector pages, and pillar
+            # surfaces. To re-add either bucket, restore the loops
+            # below from git history (see commit pruning the sitemap).
 
             ext_articles = (
                 db.query(ExternalArticleEntry)

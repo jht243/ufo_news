@@ -322,5 +322,12 @@
     })();
   </script>
 
+  {% from "_recent_briefings.html.j2" import recent_briefings_rail %}
+  {{ recent_briefings_rail(
+       recent_briefings,
+       heading="Latest analysis",
+       intro="Recent investor briefings on Venezuelan sectors, sanctions, and entry vehicles.",
+  ) }}
+
 </section>
 {% endblock %}

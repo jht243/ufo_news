@@ -101,6 +101,13 @@
     <a href="/sectors/sanctions">Venezuela sanctions sector page</a>.
   </p>
 
+  {% from "_recent_briefings.html.j2" import recent_briefings_rail %}
+  {{ recent_briefings_rail(
+       recent_briefings,
+       heading="Latest sanctions analysis",
+       intro="Recent investor briefings on OFAC enforcement, license updates, and material designations.",
+  ) }}
+
   {% from "_cluster_nav.html.j2" import cluster_nav %}
   {{ cluster_nav(cluster_ctx) }}
 

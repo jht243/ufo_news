@@ -33,5 +33,12 @@
     {% endfor %}
   </div>
 
+  {% from "_recent_briefings.html.j2" import recent_briefings_rail %}
+  {{ recent_briefings_rail(
+       recent_briefings,
+       heading="Latest analysis",
+       intro="Recent investor briefings on Venezuelan markets, sanctions, and policy moves.",
+  ) }}
+
 </section>
 {% endblock %}
