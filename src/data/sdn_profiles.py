@@ -76,6 +76,278 @@ _BUCKET_SINGULAR: dict[str, str] = {
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Sector / role classification
+# ──────────────────────────────────────────────────────────────────────
+#
+# Why this exists:
+#   GSC's #1 organic query for the sanctions corpus is literally
+#   "ofac sdn list current military, economic, diplomatic" — i.e. users
+#   want a sector-grouped view of the SDN list, not the entity-type
+#   bucket grouping (individuals/entities/vessels/aircraft) we ship by
+#   default. We don't want to spawn a new data store; we derive the
+#   sector deterministically from each profile's program code + remarks
+#   blob + raw name and bucket the result into one of four canonical
+#   sectors that mirror how OFAC describes Venezuela designations
+#   themselves.
+#
+# Classification is single-label, priority-ordered (military > diplomatic
+# > economic > governance fallback). Single-label is intentional: every
+# profile lives on exactly one /sanctions/sector/<slug> page, so we
+# don't dilute internal-link signal across multiple sector pages and
+# Google sees a clean cluster taxonomy.
+#
+# Vessels and aircraft go to "economic" by default — they're almost
+# always sanctions-evasion infrastructure tied to oil/gold trade. The
+# few exceptions are small enough that misclassification noise is
+# acceptable.
+
+# Canonical sector keys. Order is meaningful for navigation and
+# cluster-nav rendering (military first because it's the highest-volume
+# Venezuela SDN category and the strongest GSC query signal).
+SECTOR_KEYS: tuple[str, ...] = ("military", "economic", "diplomatic", "governance")
+
+# Display labels used in page titles, H1s, breadcrumbs, JSON-LD.
+SECTOR_LABELS: dict[str, str] = {
+    "military":    "Military officials",
+    "economic":    "Economic & financial actors",
+    "diplomatic":  "Diplomatic officials",
+    "governance":  "Government & political officials",
+}
+
+# One-sentence descriptions surfaced on the per-sector landing pages
+# and in cluster nav cards. Written to match how compliance/research
+# users describe the cohort, not how OFAC labels them — the SEO target
+# is the user's mental model of "military officials sanctioned by OFAC",
+# not OFAC's executive-order taxonomy.
+SECTOR_DESCRIPTIONS: dict[str, str] = {
+    "military":   (
+        "Members of the Bolivarian National Armed Forces (FANB), Bolivarian "
+        "National Guard (GNB), Directorate of Military Counterintelligence "
+        "(DGCIM), and SEBIN intelligence service designated under Venezuela-"
+        "related OFAC programs."
+    ),
+    "economic":   (
+        "Officials, banks, oil-sector entities (PDVSA and subsidiaries), "
+        "gold-mining actors, and finance-ministry figures sanctioned for "
+        "their role in Venezuela's economic, energy, and financial sectors."
+    ),
+    "diplomatic": (
+        "Ambassadors, foreign-ministry officials, consular staff, and "
+        "diplomatic representatives designated under Venezuela-related OFAC "
+        "programs — typically targeted under EO 13692 / EO 13884."
+    ),
+    "governance": (
+        "Political and judicial officials — Asamblea Nacional Constituyente "
+        "members, Supreme Tribunal of Justice (TSJ) magistrates, electoral "
+        "council (CNE) officials, governors, mayors, and ministers — "
+        "designated for undermining democratic governance."
+    ),
+}
+
+# Slug → URL path canonicalisation. Slugs are the sector keys 1:1 today
+# but kept indirected so we can rename sectors without breaking URLs.
+SECTOR_SLUGS: dict[str, str] = {k: k for k in SECTOR_KEYS}
+
+
+# Keyword sets compiled once at import time. Each tuple is matched as a
+# case-insensitive whole-phrase search against the OFAC remarks blob and
+# (for entities/vessels/aircraft) the raw name. Hits in remarks are
+# decisive; hits in raw name are decisive only when the blob has nothing
+# stronger from a higher-priority sector.
+_MILITARY_PHRASES: tuple[str, ...] = (
+    "Bolivarian National Guard",
+    "Guardia Nacional Bolivariana",
+    "Bolivarian National Armed Forces",
+    "Fuerza Armada Nacional",
+    "Ministry of Defense",
+    "Minister of Defense",
+    "Defense Minister",
+    "Strategic Operations Command",
+    "CEOFANB",
+    "DGCIM",
+    "SEBIN",
+    "Bolivarian Intelligence Service",
+    "Military Counterintelligence",
+    "Brigadier General",
+    "Major General",
+    "Lieutenant General",
+    "Vice Admiral",
+    "Rear Admiral",
+    "CAVIM",
+    "Compania Anonima Venezolana de Industrias Militares",
+    "Venezuelan Military Industries",
+    "GNB ",  # trailing space avoids matching "GNBANK" etc.
+    " FANB ",
+    "Counterintelligence",
+    "Direccion General de Contrainteligencia Militar",
+)
+
+_DIPLOMATIC_PHRASES: tuple[str, ...] = (
+    "Ambassador",
+    "Embajador",
+    "Embassy of",
+    "Embajada de",
+    "Foreign Affairs",
+    "Relaciones Exteriores",
+    "Permanent Representative",
+    "Permanent Mission",
+    "Consul ",
+    "Consul General",
+    "Consul-General",
+    "Cónsul",
+    "Diplomatic",
+    "Charge d'Affaires",
+)
+
+_ECONOMIC_PHRASES: tuple[str, ...] = (
+    "Central Bank of Venezuela",
+    "Banco Central de Venezuela",
+    " BCV ",
+    "Superintendency of Banking",
+    "SUDEBAN",
+    "PDVSA",
+    "Petroleos de Venezuela",
+    "Petróleos de Venezuela",
+    "CITGO",
+    "Ministry of Petroleum",
+    "Petroleum Minister",
+    "Minister of Petroleum",
+    "MINPET",
+    "Minister of Mining",
+    "Mining Minister",
+    "Ministry of Mines",
+    "MINERVEN",
+    "CVG Minerven",
+    "Corporacion Venezolana de Mineria",
+    "Ecoanalitica",
+    "Finance Minister",
+    "Minister of Finance",
+    "Ministry of Finance",
+    "Hacienda",
+    "Treasury Minister",
+    "Economy Minister",
+    "Minister of Economy",
+    "SENIAT",
+    "Tax Administration",
+    "FONDEN",
+    "Bank ",  # picks up sanctioned banks; intentional broad sweep
+    "Banco ",
+    "Petro ",  # PetroBuena, PetroLera, etc.
+    "Oil and Gas",
+    "Crude Oil",
+)
+
+
+# Editorial overrides for high-profile designations whose OFAC remarks
+# blob is too sparse for the keyword classifier to make the right call
+# (most Treasury remarks are just DOB/cedula/passport — the role/title
+# is in analyst notes, not the SDN listing). Keys match the normalized
+# OFAC raw_name (uppercased, accent-stripped, single-spaced) so we
+# don't have to chase unicode quirks. Add new entries here when the
+# auto-classifier puts a well-known figure in the wrong sector — this
+# is the right place for editorial judgement, not the keyword lists.
+#
+# Maintenance rule: keep this table small (≤100 entries). If a class
+# of designations is consistently misclassified, fix the keyword lists
+# instead — overrides should be last-resort exceptions, not a way to
+# work around a poor classifier.
+_SECTOR_OVERRIDES: dict[str, str] = {
+    # Military / armed-forces leadership
+    "PADRINO LOPEZ, VLADIMIR":                       "military",  # Defense Minister
+    "REVEROL TORRES, NESTOR LUIS":                   "military",  # Former Commander General GNB
+    "BENAVIDES TORRES, ANTONIO JOSE":                "military",  # Former GNB Commander
+    "BERNAL MARTINEZ, MANUEL GREGORIO":              "military",  # Maj. General, FANB
+    "GONZALEZ LOPEZ, GUSTAVO ENRIQUE":               "military",  # SEBIN Director
+    "LUGO ARMAS, BLADIMIR HUMBERTO":                 "military",  # SEBIN
+    "HERNANDEZ DALA, IVAN RAFAEL":                   "military",  # DGCIM/Honor Guard
+    "RICO RODRIGUEZ, JOSE MIGUEL DOMINGO":           "military",  # GNB
+    "MORAO RODRIGUEZ, RAFAEL ANTONIO":               "military",  # FANB intel
+    "RANGEL RODRIGUEZ, FABIO ENRIQUE":               "military",  # CEOFANB
+    "ZERPA DELGADO, FRANCISCO JOSE":                 "military",  # SEBIN
+    "GUERRERO TORRES, ELVIS EDUARDO":                "military",  # DGCIM
+    "PEREZ AMPUEDA, RICHARD JESUS":                  "military",  # PNB
+    "PEREZ URDANETA, MANUEL EDUARDO":                "military",  # PNB / GNB
+    "OBLITAS RUZZA, ALI ERNESTO":                    "military",  # GNB
+
+    # Diplomatic / foreign-affairs
+    "ARREAZA MONTSERRAT, JORGE ALBERTO":             "diplomatic",  # Foreign Minister
+    "MONCADA, SAMUEL REINALDO":                      "diplomatic",  # UN Permanent Rep
+    "RODRIGUEZ DIAZ, JULIAN ISAIAS":                 "diplomatic",  # Former Attorney General / Diplomat
+    "CASTILLO BOLLE, WILLIAM ALFREDO":               "diplomatic",  # Vice-Foreign Minister
+    "PLASENCIA, FELIX RAMON":                        "diplomatic",  # Foreign Minister
+
+    # Economic / oil / mining / finance
+    "QUEVEDO FERNANDEZ, MANUEL SALVADOR":            "economic",   # Former Oil Minister / PDVSA pres
+    "EL AISSAMI MADDAH, TARECK ZAIDAN":              "economic",   # Oil Minister
+    "MERENTES DIAZ, NELSON JOSE":                    "economic",   # Former BCV President
+    "ALBISINNI SERRANO, ROCCO":                      "economic",   # CENCOEX
+    "BERMUDEZ, MARCELO ENRIQUE":                     "economic",   # Treasury
+    "PEREZ ABAD, MIGUEL ANGEL":                      "economic",   # Industries Minister
+    "CALDERON BERTI, HUMBERTO":                      "economic",   # Former Oil Minister
+    "PIETRI PIETRI, ALEJANDRO ANTONIO":              "economic",   # Banking
+}
+
+
+def _classify_sector(
+    *,
+    bucket: str,
+    raw_name: str,
+    program: str,
+    remarks: str,
+) -> str:
+    """Return the canonical sector key for a single SDN entry.
+
+    Priority-ordered first-match-wins (military > diplomatic > economic
+    > governance fallback). Matches are case-insensitive substring
+    searches against `remarks` first, then `raw_name`. We deliberately
+    do NOT use the program code as the dominant signal because OFAC's
+    EO grouping is too coarse (EO 13884 covers everyone in the
+    Government of Venezuela — military, judicial, and political alike).
+
+    Vessels and aircraft are forced to "economic" — they're sanctions-
+    evasion infrastructure attached to PDVSA / gold-trade routes in
+    every observed case.
+    """
+    if bucket in ("vessels", "aircraft"):
+        return "economic"
+
+    # Editorial overrides win over keyword matching — the override table
+    # only contains designations whose role is not in the OFAC remarks
+    # blob and where misclassification is editorially obvious. See the
+    # comment on _SECTOR_OVERRIDES for the maintenance rules.
+    name_key = re.sub(r"\s+", " ",
+        unicodedata.normalize("NFKD", raw_name or "")
+            .encode("ascii", "ignore").decode("ascii").upper().strip())
+    if name_key in _SECTOR_OVERRIDES:
+        return _SECTOR_OVERRIDES[name_key]
+
+    # Lowercase once. Match phrases as substrings (with word boundaries
+    # baked into the trailing space on ambiguous abbreviations like
+    # "GNB " / " FANB " / " BCV ").
+    haystack = " " + (remarks or "").lower() + " " + (raw_name or "").lower() + " "
+
+    def _hits(phrases: tuple[str, ...]) -> bool:
+        for p in phrases:
+            if p.lower() in haystack:
+                return True
+        return False
+
+    if _hits(_MILITARY_PHRASES):
+        return "military"
+    if _hits(_DIPLOMATIC_PHRASES):
+        return "diplomatic"
+    if _hits(_ECONOMIC_PHRASES):
+        return "economic"
+
+    # Default: governance covers political (Asamblea, governors,
+    # mayors, ministers without a sector keyword), judicial (TSJ
+    # magistrates), and electoral (CNE) officials. This is intentional
+    # — anything not classified above is a "general government" actor
+    # under EO 13884, which is exactly the governance cluster.
+    return "governance"
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Slug + name helpers
 # ──────────────────────────────────────────────────────────────────────
 
@@ -199,6 +471,7 @@ class SDNProfile:
     raw_remarks: str = ""
     parsed: dict[str, str] = field(default_factory=dict)
     linked_to: list[str] = field(default_factory=list)  # raw names — resolve to slugs at render
+    sector: str = "governance"  # one of SECTOR_KEYS — see _classify_sector
 
     @property
     def url_path(self) -> str:
@@ -211,6 +484,14 @@ class SDNProfile:
     @property
     def is_individual(self) -> bool:
         return self.bucket == "individuals"
+
+    @property
+    def sector_label(self) -> str:
+        return SECTOR_LABELS.get(self.sector, self.sector.title())
+
+    @property
+    def sector_url_path(self) -> str:
+        return f"/sanctions/sector/{SECTOR_SLUGS.get(self.sector, self.sector)}"
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -231,6 +512,7 @@ _CACHE: dict = {
     "by_uid": {},          # {uid: SDNProfile} — for "Linked To" name resolution
     "family_clusters": {}, # {surname: list[SDNProfile]}
     "name_to_profiles": {},# normalised raw_name (no accents, lower) → list[SDNProfile]
+    "by_sector": {},       # {sector_key: list[SDNProfile]} (alpha sorted)
 }
 
 
@@ -278,6 +560,7 @@ def _load_from_db() -> None:
         by_uid: dict[str, SDNProfile] = {}
         name_to_profiles: dict[str, list[SDNProfile]] = {}
         family_clusters: dict[str, list[SDNProfile]] = {}
+        by_sector: dict[str, list[SDNProfile]] = {k: [] for k in SECTOR_KEYS}
 
         for r in rows:
             meta = r.extra_metadata or {}
@@ -299,8 +582,15 @@ def _load_from_db() -> None:
 
             program = (meta.get("program") or "").upper().strip()
             program_label = PROGRAM_LABELS.get(program, program or "Venezuela-related sanctions")
-            parsed, linked = _parse_remarks(meta.get("remarks") or "")
+            raw_remarks = (meta.get("remarks") or "").strip()
+            parsed, linked = _parse_remarks(raw_remarks)
             display = _display_name(raw_name) if bucket == "individuals" else _titlecase_acronym_safe(raw_name)
+            sector = _classify_sector(
+                bucket=bucket,
+                raw_name=raw_name,
+                program=program,
+                remarks=raw_remarks,
+            )
 
             profile = SDNProfile(
                 db_id=r.id,
@@ -314,14 +604,16 @@ def _load_from_db() -> None:
                 program_eo_url=PROGRAM_EXEC_ORDERS.get(program),
                 source_url=r.source_url or "https://ofac.treasury.gov/specially-designated-nationals-and-blocked-persons-list-sdn-human-readable-lists",
                 designation_date=r.published_date.isoformat() if r.published_date else None,
-                raw_remarks=(meta.get("remarks") or "").strip(),
+                raw_remarks=raw_remarks,
                 parsed=parsed,
                 linked_to=linked,
+                sector=sector,
             )
 
             by_bucket_slug[key] = profile
             by_bucket[bucket].append(profile)
             by_uid[profile.uid] = profile
+            by_sector.setdefault(sector, []).append(profile)
             name_to_profiles.setdefault(_normalize_for_match(raw_name), []).append(profile)
             if profile.is_individual:
                 surname = _surname(raw_name)
@@ -331,6 +623,10 @@ def _load_from_db() -> None:
         # Alpha-sort each bucket (stable; safe to enumerate for index pages).
         for bucket in by_bucket:
             by_bucket[bucket].sort(key=lambda p: p.raw_name.upper())
+        # Same alpha sort for sector buckets so the per-sector A-Z page
+        # renders deterministically regardless of DB row order.
+        for sector_key in by_sector:
+            by_sector[sector_key].sort(key=lambda p: p.raw_name.upper())
 
         _CACHE.update({
             "loaded_at": time.time(),
@@ -339,6 +635,7 @@ def _load_from_db() -> None:
             "by_uid": by_uid,
             "family_clusters": family_clusters,
             "name_to_profiles": name_to_profiles,
+            "by_sector": by_sector,
         })
     finally:
         db.close()
@@ -435,6 +732,32 @@ def stats() -> dict[str, int]:
         bucket: len(_CACHE["by_bucket"].get(bucket, []))
         for bucket in ENTITY_BUCKETS
     } | {"total": sum(len(v) for v in _CACHE["by_bucket"].values())}
+
+
+def list_by_sector(sector: str) -> list[SDNProfile]:
+    """All profiles classified into one sector, alpha-sorted by raw name.
+
+    Returns an empty list for unknown sector keys so the route can 404
+    cleanly. Sector membership is deterministic at load time — see
+    `_classify_sector` for the priority-ordered keyword rules.
+    """
+    if sector not in SECTOR_KEYS:
+        return []
+    ensure_loaded()
+    return list(_CACHE["by_sector"].get(sector, []))
+
+
+def sector_stats() -> dict[str, int]:
+    """Per-sector counts. Includes a `total` key matching `stats()['total']`
+    so callers can render share-of-corpus percentages without a second
+    cache lookup."""
+    ensure_loaded()
+    counts = {
+        key: len(_CACHE["by_sector"].get(key, []))
+        for key in SECTOR_KEYS
+    }
+    counts["total"] = sum(counts.values())
+    return counts
 
 
 def find_related_news(profile: SDNProfile, *, limit: int = 5) -> list[dict]:

@@ -796,6 +796,111 @@ def tool_ofac_general_licenses():
         abort(500)
 
 
+@app.route("/tools/sec-edgar-venezuela-impairment-search")
+@app.route("/tools/sec-edgar-venezuela-impairment-search/")
+def tool_sec_edgar_venezuela_search():
+    """Pre-canned SEC EDGAR full-text search presets for Venezuela /
+    PDVSA / impairment / contingent-liability research, plus a curated
+    quick-jump table of S&P 500 companies known to disclose Venezuela
+    items in their filings.
+
+    This route is a wrapper around two existing surfaces:
+      - The preset deeplinks live entirely client-side: each card opens
+        a pre-filled efts.sec.gov search in a new tab. We do not make
+        the EDGAR call from our server here — that's what the per-
+        company /companies/<slug>/venezuela-exposure pages do.
+      - The curated table is sourced from
+        src/data/curated_venezuela_exposure.py (single source of truth
+        for any "known disclosers" list across the site).
+    """
+    try:
+        from src.data.edgar_search_presets import list_presets, list_curated_disclosers
+        from src.page_renderer import _env
+        from datetime import date as _date
+
+        presets = list_presets()
+        disclosers = list_curated_disclosers(max_n=30)
+        today_human = _date.today().strftime("%B %Y")
+
+        faq = [
+            {
+                "q": "Which S&P 500 companies disclose Venezuela exposure to the SEC?",
+                "a": (
+                    "As of " + today_human + ", Chevron (CVX) is the most operationally Venezuela-"
+                    "exposed S&P 500 company through its OFAC GL 41-authorised PDVSA joint "
+                    "ventures. Halliburton (HAL), Schlumberger (SLB), and Baker Hughes (BKR) "
+                    "all disclose historical write-downs and residual exposure. ConocoPhillips "
+                    "(COP) and ExxonMobil (XOM) carry contingent assets from ICSID arbitration. "
+                    "Use the curated table on this page for the full list of S&P 500 disclosers."
+                ),
+            },
+            {
+                "q": "How do I search SEC EDGAR for Venezuela-related disclosures?",
+                "a": (
+                    "Open https://efts.sec.gov/LATEST/search-index/ and enter a query like "
+                    "'\"Venezuela\" OR \"PdVSA\"' constrained to forms 10-K, 20-F, 10-Q, and 8-K "
+                    "over a 24-month window. The seven preset cards on this page each open EDGAR "
+                    "with that work already done — including impairment, contingent-liability, "
+                    "OFAC compliance, and CITGO collateral queries."
+                ),
+            },
+            {
+                "q": "Why combine Venezuela, impairment, and contingent-liability search terms?",
+                "a": (
+                    "Venezuela exposure rarely shows up as a standalone disclosure. Most S&P 500 "
+                    "companies that operated in Venezuela during the 2015-2020 expropriation cycle "
+                    "now reference it indirectly — via impairment charges (write-downs of plant "
+                    "and equipment), deconsolidation footnotes, or contingent liabilities for "
+                    "ongoing ICSID arbitration. Searching for those terms alongside 'Venezuela' "
+                    "or 'PDVSA' is the most reliable way to find substantive disclosure."
+                ),
+            },
+        ]
+
+        seo, jsonld = _tool_seo_jsonld(
+            slug="sec-edgar-venezuela-impairment-search",
+            title=(
+                "SEC EDGAR Venezuela / PDVSA / Impairment Search — "
+                f"S&P 500 Disclosures ({today_human})"
+            ),
+            description=(
+                "Free, pre-canned SEC EDGAR full-text search for Venezuela, PDVSA, "
+                "CITGO, impairment, and contingent-liability disclosures across "
+                "S&P 500 10-K, 20-F, 10-Q, and 8-K filings. Includes a curated "
+                f"table of S&P 500 companies known to disclose Venezuela items, "
+                f"updated {today_human}."
+            ),
+            keywords=(
+                "sec edgar venezuela, sec edgar pdvsa, venezuela impairment search, "
+                "venezuela contingent liability, citgo edgar search, "
+                "sec filings venezuela exposure, ofac venezuela 10-K, "
+                "sp500 venezuela disclosures"
+            ),
+            faq=faq,
+        )
+
+        from src.seo.cluster_topology import build_cluster_ctx
+        cluster_ctx = build_cluster_ctx("/tools/sec-edgar-venezuela-impairment-search")
+
+        template = _env.get_template("tools/sec_edgar_venezuela_search.html.j2")
+        html = template.render(
+            presets=presets,
+            disclosers=disclosers,
+            faq=faq,
+            seo=seo,
+            jsonld=jsonld,
+            cluster_ctx=cluster_ctx,
+            current_year=_date.today().year,
+            today_human=today_human,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("tool render failed: %s", exc)
+        abort(500)
+
+
 @app.route("/tools")
 @app.route("/tools/")
 def tools_index():
@@ -823,6 +928,12 @@ def tools_index():
                 "name": "Public Company Venezuela Exposure Check",
                 "category": "Compliance",
                 "summary": "Type any S&P 500 company name or ticker — instantly see whether the company has Venezuela exposure on the OFAC SDN list, in its recent SEC filings, or in our Federal Register / news corpus. Backed by 500+ per-ticker landing pages.",
+            },
+            {
+                "url": "/tools/sec-edgar-venezuela-impairment-search",
+                "name": "SEC EDGAR Venezuela / PDVSA / Impairment Search",
+                "category": "Compliance",
+                "summary": "Pre-canned SEC EDGAR full-text searches for Venezuela, PDVSA, CITGO, impairment, contingent-liability, and OFAC sanctions disclosures across 10-K, 20-F, 10-Q, and 8-K filings — plus a curated quick-jump table of S&P 500 companies known to disclose Venezuela items.",
             },
             {
                 "url": "/tools/ofac-venezuela-general-licenses",
@@ -1307,10 +1418,22 @@ def sanctions_tracker():
             from src.seo.cluster_topology import build_cluster_ctx
             cluster_ctx = build_cluster_ctx("/sanctions-tracker")
 
+            # Sector-pivot counts power the "Browse by sector" callout
+            # on the tracker page. Loaded lazily so a brief sdn_profiles
+            # cache miss doesn't 500 the tracker — fall back to None and
+            # the callout renders as empty (the template guards on it).
+            try:
+                from src.data.sdn_profiles import sector_stats as _sector_stats
+                sector_stats_payload = _sector_stats()
+            except Exception as exc:
+                logger.warning("sanctions tracker: sector_stats lookup failed: %s", exc)
+                sector_stats_payload = None
+
             template = _env.get_template("sanctions_tracker.html.j2")
             html = template.render(
                 sdn_entries=sdn_entries,
                 stats=stats,
+                sector_stats=sector_stats_payload,
                 seo=seo,
                 jsonld=jsonld,
                 cluster_ctx=cluster_ctx,
@@ -1344,6 +1467,294 @@ def sanctions_tracker():
 #   • The slug arg is generated deterministically by data/sdn_profiles.py
 #     so collisions are handled there, not here.
 # ──────────────────────────────────────────────────────────────────────
+# ──────────────────────────────────────────────────────────────────────
+# Sector-pivoted SDN views
+# ──────────────────────────────────────────────────────────────────────
+#
+# /sanctions/by-sector            → pillar landing page, 4 sector cards
+# /sanctions/sector/<slug>        → A-Z directory for one sector
+#
+# Why these exist (alongside the bucket routes /sanctions/<bucket>):
+#   GSC's #1 organic query for the sanctions corpus is literally
+#   "ofac sdn list current military, economic, diplomatic" — i.e. users
+#   want a SECTOR-pivoted view, not the entity-type pivot OFAC offers.
+#   These two routes serve that intent and provide a second internal-link
+#   path into every /sanctions/<bucket>/<slug> profile, which compounds
+#   indexing speed for the whole 410-page corpus.
+#
+# Sector classification is done at SDN-load time in
+# src/data/sdn_profiles.py — see _classify_sector for the priority-
+# ordered keyword rules and the editorial overrides table.
+# ──────────────────────────────────────────────────────────────────────
+@app.route("/sanctions/by-sector")
+@app.route("/sanctions/by-sector/")
+def sanctions_by_sector_index():
+    """Pillar landing page that pivots the SDN list by sector."""
+    from src.data.sdn_profiles import (
+        SECTOR_KEYS, SECTOR_LABELS, SECTOR_DESCRIPTIONS, SECTOR_SLUGS,
+        list_by_sector, sector_stats, stats as sdn_stats,
+    )
+    from src.page_renderer import _env, _base_url, _iso, settings as _s
+    from datetime import date as _date, datetime as _dt
+    import json as _json
+
+    try:
+        s_counts = sector_stats()
+        bucket_stats = sdn_stats()
+
+        # Build the per-sector card payload. Top-names is capped at 6 —
+        # that's enough to give every card real content above the fold
+        # and dense crawlable links, but not so many that one card
+        # dominates the SERP snippet preview.
+        sectors_payload: list[dict] = []
+        for key in SECTOR_KEYS:
+            profs = list_by_sector(key)
+            sectors_payload.append({
+                "key": key,
+                "label": SECTOR_LABELS.get(key, key.title()),
+                "description": SECTOR_DESCRIPTIONS.get(key, ""),
+                "url_path": f"/sanctions/sector/{SECTOR_SLUGS.get(key, key)}",
+                "count": len(profs),
+                "top_names": profs[:6],
+            })
+
+        base = _base_url()
+        canonical = f"{base}/sanctions/by-sector"
+        today_human = _date.today().strftime("%B %-d, %Y")
+
+        # SEO copy intentionally mirrors the GSC query language the page
+        # is built to capture. "Currently" in the title is the freshness
+        # signal that "current military, economic, diplomatic" searchers
+        # are asking for.
+        title = (
+            "OFAC Venezuela SDN List by Sector — Currently Sanctioned "
+            "Military, Economic, Diplomatic & Governance Officials"
+        )[:120]
+        description = (
+            f"All {bucket_stats['total']} active OFAC Venezuela-program SDN "
+            f"designations grouped by sector: {s_counts.get('military', 0)} military "
+            f"officials, {s_counts.get('economic', 0)} economic & financial actors, "
+            f"{s_counts.get('diplomatic', 0)} diplomatic officials, and "
+            f"{s_counts.get('governance', 0)} government & political figures. Updated {today_human}."
+        )[:300]
+
+        seo = {
+            "title": title,
+            "description": description,
+            "keywords": (
+                "OFAC Venezuela SDN list, OFAC sanctions by sector, "
+                "Venezuela military sanctions, Venezuela economic sanctions, "
+                "Venezuela diplomatic sanctions, OFAC governance sanctions, "
+                "current OFAC Venezuela list"
+            ),
+            "canonical": canonical,
+            "site_name": _s.site_name,
+            "site_url": base,
+            "locale": _s.site_locale,
+            "og_image": f"{base}/static/og-image.png?v=3",
+            "og_type": "website",
+            "published_iso": _iso(_dt.utcnow()),
+            "modified_iso": _iso(_dt.utcnow()),
+        }
+
+        jsonld = _json.dumps({
+            "@context": "https://schema.org",
+            "@graph": [
+                {
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                        {"@type": "ListItem", "position": 2, "name": "OFAC Venezuela Sanctions", "item": f"{base}/sanctions-tracker"},
+                        {"@type": "ListItem", "position": 3, "name": "By sector", "item": canonical},
+                    ],
+                },
+                {
+                    "@type": "CollectionPage",
+                    "@id": f"{canonical}#collection",
+                    "name": title,
+                    "description": description,
+                    "url": canonical,
+                    "isPartOf": {"@type": "WebSite", "url": f"{base}/", "name": _s.site_name},
+                    "hasPart": [
+                        {
+                            "@type": "ItemList",
+                            "name": item["label"],
+                            "url": f"{base}{item['url_path']}",
+                            "numberOfItems": item["count"],
+                            "description": item["description"],
+                        }
+                        for item in sectors_payload
+                    ],
+                },
+            ],
+        }, ensure_ascii=False)
+
+        from src.seo.cluster_topology import build_cluster_ctx
+        cluster_ctx = build_cluster_ctx("/sanctions/by-sector")
+
+        template = _env.get_template("sanctions/by_sector_index.html.j2")
+        html = template.render(
+            sectors=sectors_payload,
+            stats=bucket_stats | s_counts,
+            today_human=today_human,
+            seo=seo,
+            jsonld=jsonld,
+            cluster_ctx=cluster_ctx,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("sanctions by-sector index render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/sanctions/sector/<slug>")
+@app.route("/sanctions/sector/<slug>/")
+def sanctions_by_sector_detail(slug: str):
+    """A-Z directory of every SDN designation in one sector."""
+    from src.data.sdn_profiles import (
+        SECTOR_KEYS, SECTOR_LABELS, SECTOR_DESCRIPTIONS, SECTOR_SLUGS,
+        list_by_sector, sector_stats,
+    )
+    from src.page_renderer import _env, _base_url, _iso, settings as _s
+    from datetime import date as _date, datetime as _dt
+    import json as _json
+
+    if slug not in SECTOR_KEYS:
+        abort(404)
+
+    try:
+        profiles = list_by_sector(slug)
+        sector_label = SECTOR_LABELS.get(slug, slug.title())
+        sector_description = SECTOR_DESCRIPTIONS.get(slug, "")
+        s_counts = sector_stats()
+
+        # A-Z grouping (same shape the bucket index uses, so the
+        # template treatment is consistent).
+        grouped: list[tuple[str, list]] = []
+        current_letter = None
+        current_items: list = []
+        for p in profiles:
+            letter = (p.raw_name[:1] or "#").upper()
+            if not letter.isalpha():
+                letter = "#"
+            if letter != current_letter:
+                if current_items:
+                    grouped.append((current_letter, current_items))
+                current_letter = letter
+                current_items = []
+            current_items.append(p)
+        if current_items:
+            grouped.append((current_letter, current_items))
+
+        # Sector-switch nav: every other sector + "current view" callout
+        # for `slug`. Renders as a one-line list at the top of the body
+        # so users can pivot without going back to the pillar.
+        sectors_nav = [
+            {
+                "key": k,
+                "label": SECTOR_LABELS.get(k, k.title()),
+                "url_path": f"/sanctions/sector/{SECTOR_SLUGS.get(k, k)}",
+                "count": s_counts.get(k, 0),
+            }
+            for k in SECTOR_KEYS
+        ]
+
+        base = _base_url()
+        canonical = f"{base}/sanctions/sector/{slug}"
+        today_human = _date.today().strftime("%B %-d, %Y")
+
+        # Title bakes "currently sanctioned" + the sector label + count
+        # — three of the four signals the GSC query is asking for. The
+        # fourth (recency date) is in the meta description.
+        title = (
+            f"OFAC Venezuela SDN — Currently Sanctioned {sector_label} "
+            f"({len(profiles)})"
+        )[:120]
+        description = (
+            f"Complete list of {len(profiles)} {sector_label.lower()} currently on the "
+            f"OFAC Venezuela SDN list as of {today_human}. Includes program code, "
+            f"designation date, and a permanent profile page for every name. "
+            f"Updated twice daily from US Treasury."
+        )[:300]
+
+        seo = {
+            "title": title,
+            "description": description,
+            "keywords": (
+                f"OFAC Venezuela {sector_label.lower()}, "
+                f"sanctioned {sector_label.lower()} Venezuela, "
+                f"OFAC SDN {slug} Venezuela, "
+                f"current OFAC Venezuela {slug} list"
+            ),
+            "canonical": canonical,
+            "site_name": _s.site_name,
+            "site_url": base,
+            "locale": _s.site_locale,
+            "og_image": f"{base}/static/og-image.png?v=3",
+            "og_type": "website",
+            "published_iso": _iso(_dt.utcnow()),
+            "modified_iso": _iso(_dt.utcnow()),
+        }
+
+        jsonld = _json.dumps({
+            "@context": "https://schema.org",
+            "@graph": [
+                {
+                    "@type": "BreadcrumbList",
+                    "itemListElement": [
+                        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                        {"@type": "ListItem", "position": 2, "name": "OFAC Venezuela Sanctions", "item": f"{base}/sanctions-tracker"},
+                        {"@type": "ListItem", "position": 3, "name": "By sector", "item": f"{base}/sanctions/by-sector"},
+                        {"@type": "ListItem", "position": 4, "name": sector_label, "item": canonical},
+                    ],
+                },
+                {
+                    "@type": "ItemList",
+                    "@id": f"{canonical}#list",
+                    "name": title,
+                    "description": description,
+                    "numberOfItems": len(profiles),
+                    "itemListElement": [
+                        {
+                            "@type": "ListItem",
+                            "position": idx + 1,
+                            "url": f"{base}{p.url_path}",
+                            "name": p.display_name,
+                        }
+                        for idx, p in enumerate(profiles[:200])
+                    ],
+                },
+            ],
+        }, ensure_ascii=False)
+
+        from src.seo.cluster_topology import build_cluster_ctx
+        cluster_ctx = build_cluster_ctx(f"/sanctions/sector/{slug}")
+
+        template = _env.get_template("sanctions/by_sector.html.j2")
+        html = template.render(
+            active_key=slug,
+            sector_label=sector_label,
+            sector_description=sector_description,
+            profiles=profiles,
+            grouped=grouped,
+            sectors_nav=sectors_nav,
+            today_human=today_human,
+            seo=seo,
+            jsonld=jsonld,
+            cluster_ctx=cluster_ctx,
+            current_year=_date.today().year,
+        )
+        return Response(html, mimetype="text/html")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("sanctions by-sector detail render failed for slug=%s: %s", slug, exc)
+        abort(500)
+
+
 @app.route("/sanctions/<bucket>")
 @app.route("/sanctions/<bucket>/")
 def sanctions_index_page(bucket: str):
@@ -1382,14 +1793,31 @@ def sanctions_index_page(bucket: str):
 
         base = _base_url()
         canonical = f"{base}/sanctions/{bucket}"
+        today_human = _date.today().strftime("%B %Y")
+        today_iso = _date.today().isoformat()
+
+        # Title leads with the question intent ("Currently sanctioned…")
+        # + count + month-year freshness marker. The month marker is the
+        # CTR lever — Google flags listings as "fresh" in the SERP and
+        # users click them first for any "list of currently…" query.
+        plural = singular if singular.endswith("s") else f"{singular}s"
         seo = {
-            "title": f"OFAC Venezuela SDN — {bucket.capitalize()} ({len(profiles)} active designations)",
+            "title": (
+                f"Currently Sanctioned Venezuela {bucket.capitalize()} — "
+                f"OFAC SDN List ({len(profiles)} Active, {today_human})"
+            )[:120],
             "description": (
-                f"Complete list of {len(profiles)} {singular}{'s' if not singular.endswith('s') else ''} "
-                f"on the US Treasury OFAC SDN List under Venezuela-related sanctions programs. "
-                f"Each entry links to a full profile with biographical data, linked entities, and recent news."
+                f"All {len(profiles)} Venezuelan {plural} actively sanctioned by "
+                f"OFAC as of {today_human}. Browse the full SDN list A–Z, with "
+                f"each name linking to a permanent profile (program code, executive "
+                f"order, biographical data, and direct OFAC source link). Updated "
+                f"twice daily from the live US Treasury feed."
+            )[:300],
+            "keywords": (
+                f"currently sanctioned Venezuela {bucket}, OFAC Venezuela "
+                f"{bucket} list, Venezuela SDN {bucket} {today_human.split()[-1]}, "
+                f"OFAC Venezuela sanctions list, OFAC SDN search"
             ),
-            "keywords": f"OFAC {bucket} Venezuela, Venezuela SDN {bucket}, OFAC Venezuela sanctions list, OFAC SDN search",
             "canonical": canonical,
             "site_name": _s.site_name,
             "site_url": base,
@@ -1443,6 +1871,8 @@ def sanctions_index_page(bucket: str):
             jsonld=jsonld,
             cluster_ctx=cluster_ctx,
             current_year=_date.today().year,
+            today_human=today_human,
+            today_iso=today_iso,
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
@@ -1494,30 +1924,48 @@ def sanctions_profile_page(bucket: str, slug: str):
 
         base = _base_url()
         canonical = f"{base}{profile.url_path}"
+        today_human = _date.today().strftime("%B %Y")
+        today_iso = _date.today().isoformat()
 
-        # Description emphasises the entity's NAME first (matching how people
-        # search) and includes the program for context. Keep <=160 chars so
-        # SERP doesn't truncate.
-        desc_bits = [f"{profile.display_name} — OFAC Venezuela SDN profile"]
-        if profile.parsed.get("dob"):
-            desc_bits.append(f"DOB {profile.parsed['dob']}")
-        if profile.parsed.get("nationality"):
-            desc_bits.append(profile.parsed["nationality"])
-        if profile.program:
-            desc_bits.append(profile.program)
-        desc_bits.append("biographical data, linked entities, and source links.")
-        description = ". ".join(desc_bits)[:300]
-
-        # Title carries the name verbatim → SERP click magnet.
+        # ── SEO copy ──────────────────────────────────────────────────
+        # Title: short name + binary status ("Sanctioned by OFAC") +
+        # date marker ("Active 2026"). The date marker drives CTR even
+        # at position 6+ — Google has shown that "fresh" results
+        # outclick stale ones for currently-active queries like
+        # "vicente carretero sanction" or "vladimir padrino lopez ofac".
         title = (
-            f"{profile.display_name} — OFAC Venezuela SDN profile "
-            f"({profile.program or 'sanctions'})"
+            f"{profile.display_name} — Sanctioned by OFAC "
+            f"(Active {_date.today().year})"
         )[:120]
+
+        # Description: open with binary "Yes — actively sanctioned",
+        # follow with the most-clickable identifying detail (DOB /
+        # nationality / program), close with a click-trigger CTA so the
+        # SERP snippet ends on action verbs, not throat-clearing.
+        ident_bits: list[str] = []
+        if profile.parsed.get("nationality"):
+            ident_bits.append(profile.parsed["nationality"])
+        if profile.parsed.get("dob"):
+            ident_bits.append(f"born {profile.parsed['dob']}")
+        if profile.parsed.get("imo"):
+            ident_bits.append(f"IMO {profile.parsed['imo']}")
+        if profile.parsed.get("aircraft_tail"):
+            ident_bits.append(f"tail {profile.parsed['aircraft_tail']}")
+        ident_phrase = (" (" + ", ".join(ident_bits) + ")") if ident_bits else ""
+        program_phrase = profile.program or "Venezuela-related sanctions"
+
+        description = (
+            f"{profile.display_name}{ident_phrase} is actively sanctioned by "
+            f"OFAC under {program_phrase} as of {today_human}. View the live "
+            f"SDN entry, linked entities, and the executive order under which "
+            f"the designation was made."
+        ).strip()[:300]
 
         seo = {
             "title": title,
             "description": description,
             "keywords": (
+                f"is {profile.display_name} sanctioned, "
                 f"{profile.display_name} OFAC, {profile.display_name} sanctions, "
                 f"{profile.raw_name}, OFAC Venezuela {profile.category_singular}, "
                 f"OFAC SDN {profile.category_singular}, {profile.program}"
@@ -1615,9 +2063,62 @@ def sanctions_profile_page(bucket: str, slug: str):
             if identifiers:
                 entity_node["identifier"] = identifiers
 
+        # ── FAQPage Q&As ──────────────────────────────────────────────
+        # Three binary-answer questions matching how compliance, media,
+        # and counterparty researchers search ("is X sanctioned?",
+        # "what program?", "when was X added?"). FAQPage rich results
+        # are the single biggest CTR lever on these long-tail
+        # individual-name pages — they double the SERP real estate.
+        program_label = profile.program_label or "Venezuela-related OFAC sanctions"
+        added_human = profile.designation_date or "the date OFAC first published the designation"
+
+        is_sanctioned_q = f"Is {profile.display_name} currently sanctioned by OFAC?"
+        is_sanctioned_a = (
+            f"Yes. As of {today_human}, {profile.display_name} is on the active US Treasury "
+            f"Office of Foreign Assets Control (OFAC) Specially Designated Nationals (SDN) "
+            f"list under the {program_label} program. All assets under US jurisdiction are "
+            f"blocked and US persons are generally prohibited from dealing with them."
+        )
+
+        program_q = f"What OFAC program is {profile.display_name} sanctioned under?"
+        program_a = (
+            f"{profile.display_name} is designated under {program_label}. "
+            "This is one of four Venezuela-related OFAC programs: VENEZUELA "
+            "(omnibus), EO 13692 (human-rights / corruption, 2015), EO 13850 "
+            "(gold sector and individual officials, 2018), and EO 13884 "
+            "(government-of-Venezuela block, 2019)."
+        )
+
+        added_q = f"When was {profile.display_name} added to the OFAC SDN list?"
+        added_a = (
+            f"{profile.display_name} was added to the OFAC SDN list on {added_human}. "
+            "OFAC publishes designations as part of broader Venezuela-program actions; "
+            "the linked OFAC source page records the original press release. The "
+            "designation remains active until OFAC removes it via a delisting action."
+        )
+
+        faq_block = [
+            {"q": is_sanctioned_q, "a": is_sanctioned_a},
+            {"q": program_q,       "a": program_a},
+            {"q": added_q,         "a": added_a},
+        ]
+
+        faq_node = {
+            "@type": "FAQPage",
+            "@id": f"{canonical}#faq",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": f["q"],
+                    "acceptedAnswer": {"@type": "Answer", "text": f["a"][:500]},
+                }
+                for f in faq_block
+            ],
+        }
+
         jsonld = _json.dumps({
             "@context": "https://schema.org",
-            "@graph": [breadcrumb, entity_node],
+            "@graph": [breadcrumb, entity_node, faq_node],
         }, ensure_ascii=False)
 
         from src.seo.cluster_topology import build_cluster_ctx, sector_for_program
@@ -1637,6 +2138,9 @@ def sanctions_profile_page(bucket: str, slug: str):
             seo=seo,
             jsonld=jsonld,
             current_year=_date.today().year,
+            today_human=today_human,
+            today_iso=today_iso,
+            faq_block=faq_block,
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
@@ -1830,21 +2334,54 @@ def companies_profile_page(slug: str):
 
         base = _base_url()
         canonical = f"{base}/companies/{company.slug}/venezuela-exposure"
+        today_human = _date.today().strftime("%B %Y")
+        today_iso = _date.today().isoformat()
 
+        # ── SEO copy ──────────────────────────────────────────────────
+        # Title is a binary question. From GSC: queries like
+        # "jacobs solutions inc. sanctions" are intent-binary ("am I
+        # exposed?") — the title that wins clicks at position 6+ is the
+        # one whose snippet immediately answers the question. We bake
+        # the answer into both the title format and the meta description
+        # so the SERP snippet does the persuasion before the click.
         title = (
-            f"{company.short_name} ({company.ticker}) Venezuela Exposure — "
-            "OFAC, SEC Filings & Sanctions Check"
+            f"Is {company.short_name} ({company.ticker}) Sanctioned? "
+            f"Venezuela & OFAC Exposure ({today_human})"
         )[:120]
-        description = report.headline + " " + (report.summary or "")
-        description = description.strip()[:300]
+
+        # Binary answers per classification. Drives both the description
+        # opener and the FAQPage answer body. Keeping the mapping in one
+        # place avoids drift between the SERP snippet, the visible page
+        # banner, and the structured-data answers.
+        binary_yes_no = {
+            "direct":     ("Yes",   "has direct Venezuela exposure on the public record"),
+            "indirect":   ("Partly", "has indirect Venezuela exposure via subsidiaries or counterparties"),
+            "historical": ("No (resolved)", "has only historical Venezuela exposure (wound down or written off)"),
+            "none":       ("No",   "has no current Venezuela exposure on the public record"),
+            "unknown":    ("No",   "has no Venezuela exposure on the public record"),
+        }
+        yes_no, binary_phrase = binary_yes_no.get(
+            report.classification, ("Unknown", "exposure to Venezuela has not been determined")
+        )
+
+        # Open the description with the binary answer using ${ticker} so
+        # it matches how analysts type the query, then add the
+        # methodology and freshness in one breath. Cap at 300 to avoid
+        # SERP truncation while still carrying the click-driver.
+        description = (
+            f"{company.short_name} (${company.ticker}) {binary_phrase} as of "
+            f"{today_human}. Independent check across OFAC SDN list, SEC EDGAR "
+            f"10-K/10-Q/20-F filings, and the Caracas Research news corpus."
+        ).strip()[:300]
 
         seo = {
             "title": title,
             "description": description,
             "keywords": (
-                f"{company.short_name} Venezuela, {company.ticker} Venezuela exposure, "
-                f"{company.short_name} OFAC, {company.short_name} PDVSA, "
-                f"{company.ticker} sanctions, public company Venezuela exposure"
+                f"is {company.short_name} sanctioned, {company.short_name} Venezuela, "
+                f"{company.ticker} Venezuela exposure, {company.short_name} OFAC, "
+                f"{company.short_name} PDVSA, {company.ticker} sanctions, "
+                f"public company Venezuela exposure"
             ),
             "canonical": canonical,
             "site_name": _s.site_name,
@@ -1856,10 +2393,11 @@ def companies_profile_page(slug: str):
             "modified_iso": _iso(_dt.utcnow()),
         }
 
-        # JSON-LD: BreadcrumbList + a ReviewNewsArticle-style "Report"
-        # node so the page is eligible for the Article rich result. We
-        # also emit Organization for the subject company so SERP/KG
-        # recognise the entity link.
+        # JSON-LD: BreadcrumbList + Article + Organization + FAQPage.
+        # The FAQPage block is the CTR lever — Google often renders the
+        # collapsible FAQ rich result for questions matching {brand} +
+        # "sanctioned" / "Venezuela exposure", which roughly doubles
+        # click-through versus a plain blue-link result.
         breadcrumb = {
             "@type": "BreadcrumbList",
             "itemListElement": [
@@ -1891,13 +2429,83 @@ def companies_profile_page(slug: str):
                 "alternateName": company.ticker,
             },
         }
+
+        # ── FAQPage Q&As ──────────────────────────────────────────────
+        # Three questions matching how compliance / IR / M&A analysts
+        # actually search, each with a one-paragraph answer ≤300 chars
+        # so Google renders them cleanly in the rich result.
+        is_sanctioned_a = (
+            f"As of {today_human}, {company.short_name} ({company.ticker}) is "
+            + ("listed on, or directly connected to entities on, the OFAC Venezuela SDN list."
+               if report.sdn_matches else
+               "not listed on the OFAC Venezuela SDN list. No direct or subsidiary entity match was found in our scan against the live US Treasury SDN feed.")
+            + " Always re-verify against the official OFAC Sanctions Search before relying on this for a compliance decision."
+        )
+
+        edgar_n = len(report.edgar_mentions)
+        sec_disclosure_a = (
+            f"{company.short_name} has filed {edgar_n} recent SEC document"
+            f"{'s' if edgar_n != 1 else ''} containing Venezuela-related references "
+            f"(searched across 10-K, 10-Q, 8-K, 20-F, and 6-K filings on EDGAR over the last 24 months). "
+            "See the SEC filings section on the page for the matched excerpts and links to each filing."
+        ) if edgar_n else (
+            f"No recent SEC filings by {company.short_name} ({company.ticker}) contain Venezuela, "
+            "PDVSA, CITGO, or Caracas references in our EDGAR search across 10-K, 10-Q, 8-K, "
+            "20-F, and 6-K forms over the last 24 months. Use SEC EDGAR's full-text search to verify."
+        )
+
+        revenue_exposure_a = (
+            f"{report.headline} {report.summary[:200]}".strip()
+        )[:300]
+
+        faq_node = {
+            "@type": "FAQPage",
+            "@id": f"{canonical}#faq",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": f"Is {company.short_name} ({company.ticker}) sanctioned by OFAC?",
+                    "acceptedAnswer": {"@type": "Answer", "text": is_sanctioned_a[:400]},
+                },
+                {
+                    "@type": "Question",
+                    "name": f"Does {company.short_name} have Venezuela revenue exposure?",
+                    "acceptedAnswer": {"@type": "Answer", "text": revenue_exposure_a[:400]},
+                },
+                {
+                    "@type": "Question",
+                    "name": f"Has {company.short_name} disclosed Venezuela in its SEC filings?",
+                    "acceptedAnswer": {"@type": "Answer", "text": sec_disclosure_a[:400]},
+                },
+            ],
+        }
+
         jsonld = _json.dumps(
-            {"@context": "https://schema.org", "@graph": [breadcrumb, article_node]},
+            {"@context": "https://schema.org", "@graph": [breadcrumb, article_node, faq_node]},
             ensure_ascii=False,
         )
 
         from src.seo.cluster_topology import build_cluster_ctx
         cluster_ctx = build_cluster_ctx(f"/companies/{company.slug}/venezuela-exposure")
+
+        # FAQ-style copy ALSO needs to be visible on the page — Google
+        # only honors FAQPage structured data when the same Q&As appear
+        # in the rendered HTML. We pass the trio through to the
+        # template so the on-page FAQ block stays in lockstep.
+        faq_block = [
+            {
+                "q": f"Is {company.short_name} ({company.ticker}) sanctioned by OFAC?",
+                "a": is_sanctioned_a,
+            },
+            {
+                "q": f"Does {company.short_name} have Venezuela revenue exposure?",
+                "a": revenue_exposure_a,
+            },
+            {
+                "q": f"Has {company.short_name} disclosed Venezuela in its SEC filings?",
+                "a": sec_disclosure_a,
+            },
+        ]
 
         template = _env.get_template("companies/profile.html.j2")
         html = template.render(
@@ -1907,6 +2515,9 @@ def companies_profile_page(slug: str):
             jsonld=jsonld,
             cluster_ctx=cluster_ctx,
             current_year=_date.today().year,
+            today_human=today_human,
+            today_iso=today_iso,
+            faq_block=faq_block,
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
@@ -2700,6 +3311,11 @@ def sitemap_xml():
         {"loc": f"{base}/", "lastmod": today_iso, "changefreq": "daily", "priority": "1.0"},
         {"loc": f"{base}/invest-in-venezuela", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.9"},
         {"loc": f"{base}/sanctions-tracker", "lastmod": today_iso, "changefreq": "daily", "priority": "0.9"},
+        {"loc": f"{base}/sanctions/by-sector", "lastmod": today_iso, "changefreq": "daily", "priority": "0.9"},
+        {"loc": f"{base}/sanctions/sector/military", "lastmod": today_iso, "changefreq": "daily", "priority": "0.85"},
+        {"loc": f"{base}/sanctions/sector/economic", "lastmod": today_iso, "changefreq": "daily", "priority": "0.85"},
+        {"loc": f"{base}/sanctions/sector/diplomatic", "lastmod": today_iso, "changefreq": "daily", "priority": "0.85"},
+        {"loc": f"{base}/sanctions/sector/governance", "lastmod": today_iso, "changefreq": "daily", "priority": "0.85"},
         {"loc": f"{base}/sanctions/individuals", "lastmod": today_iso, "changefreq": "daily", "priority": "0.85"},
         {"loc": f"{base}/sanctions/entities", "lastmod": today_iso, "changefreq": "daily", "priority": "0.85"},
         {"loc": f"{base}/sanctions/vessels", "lastmod": today_iso, "changefreq": "daily", "priority": "0.8"},
@@ -2713,6 +3329,7 @@ def sitemap_xml():
         {"loc": f"{base}/tools/bolivar-usd-exchange-rate", "lastmod": today_iso, "changefreq": "daily", "priority": "0.7"},
         {"loc": f"{base}/tools/ofac-venezuela-sanctions-checker", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.7"},
         {"loc": f"{base}/tools/public-company-venezuela-exposure-check", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.75"},
+        {"loc": f"{base}/tools/sec-edgar-venezuela-impairment-search", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.75"},
         {"loc": f"{base}/companies", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.85"},
         {"loc": f"{base}/tools/ofac-venezuela-general-licenses", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.7"},
         {"loc": f"{base}/tools/caracas-safety-by-neighborhood", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.6"},

@@ -1,0 +1,112 @@
+{#
+  /sanctions/sector/<slug> — A–Z directory of every OFAC SDN
+  designation classified into one sector (military / economic /
+  diplomatic / governance).
+
+  Sister page to /sanctions/<bucket> — same A–Z UX, but pivoted on
+  sector instead of entity-type. The H1 deliberately uses the word
+  "currently" to match the GSC query that motivated this page
+  ("ofac sdn list current military, economic, diplomatic"); freshness
+  copy reinforces it.
+
+  Each name links to the same /sanctions/<bucket>/<slug> profile that
+  the bucket-based index links to — one profile, two paths in.
+#}
+{% extends "_base.html.j2" %}
+{% from "_cluster_nav.html.j2" import cluster_nav %}
+
+{% block content %}
+<div class="container-wide">
+  <nav class="breadcrumbs" aria-label="Breadcrumb">
+    <a href="/">Home</a>
+    <span>›</span>
+    <a href="/sanctions-tracker">OFAC Venezuela Sanctions</a>
+    <span>›</span>
+    <a href="/sanctions/by-sector">By sector</a>
+    <span>›</span>
+    <strong>{{ sector_label }}</strong>
+  </nav>
+
+  <article>
+    <header>
+      <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:var(--sr-red); font-weight:700;">
+        Live tracker · {{ today_human }} · {{ profiles|length }} active designations
+      </div>
+      <h1>OFAC Venezuela SDN — Currently Sanctioned {{ sector_label }} ({{ profiles|length }})</h1>
+      <p class="subtitle">
+        Every {{ sector_label|lower }} on the US Treasury OFAC SDN List under
+        Venezuela-related sanctions programs. Each name links to a permanent
+        profile with biographical data, OFAC program code, and source link.
+      </p>
+      <div class="meta">
+        <span><strong>Source:</strong> US Treasury OFAC SDN List</span>
+        <span><strong>Refreshed:</strong> twice daily (10am &amp; 5pm Medellín)</span>
+        <span><strong>Programs covered:</strong> VENEZUELA, EO 13692, EO 13850, EO 13884</span>
+      </div>
+    </header>
+
+    <div class="body">
+      <div class="takeaways">
+        <h3>What "{{ sector_label|lower }}" means here</h3>
+        <p style="margin: 0; font-size: 14px;">{{ sector_description }}</p>
+      </div>
+
+      <p>
+        Switch between sector views:
+      </p>
+      <ul>
+        {% for s in sectors_nav %}
+        <li>
+          {% if s.key == active_key %}
+          <strong>{{ s.label }} ({{ s.count }})</strong> — current view
+          {% else %}
+          <a href="{{ s.url_path }}"><strong>{{ s.label }}</strong></a> ({{ s.count }})
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+
+      <h2>All {{ sector_label|lower }} (A–Z)</h2>
+      {% if grouped %}
+      {% for letter, items in grouped %}
+      <h3 id="{{ letter }}">{{ letter }}</h3>
+      <ul class="related">
+        {% for p in items %}
+        <li>
+          <a href="{{ p.url_path }}">{{ p.display_name }}</a>
+          <small>— {{ p.program or 'VENEZUELA' }} ·
+            {{ p.category_singular }}{% if p.parsed.dob %} · DOB {{ p.parsed.dob }}{% elif p.parsed.imo %} · IMO {{ p.parsed.imo }}{% elif p.parsed.aircraft_tail %} · Tail {{ p.parsed.aircraft_tail }}{% endif %}</small>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+      {% else %}
+      <p>No designations are currently classified under this sector.</p>
+      {% endif %}
+
+      <h2>Why this view exists</h2>
+      <p>
+        OFAC publishes the Venezuela SDN list grouped only by entity type
+        (individuals / entities / vessels / aircraft) and by executive order.
+        Compliance, M&amp;A, and journalist research workflows usually want a
+        sector-pivoted view — "who are the currently-sanctioned military
+        officials?" or "which Venezuelan banks are blocked?" — which neither
+        OFAC nor most trackers offer. We compute the sector for every
+        designation from its OFAC remarks plus a curated overrides table; see
+        the <a href="/sanctions/by-sector">sector pillar page</a> for the full
+        methodology.
+      </p>
+
+      <h2>Verifying these designations</h2>
+      <ul>
+        <li><a href="https://sanctions-search.ofac.treasury.gov/" rel="nofollow">OFAC official Sanctions Search</a> — primary source for live screening</li>
+        <li><a href="/tools/ofac-venezuela-sanctions-checker">Our search tool</a> — paste any name to see if it's currently designated</li>
+        <li><a href="/tools/ofac-venezuela-general-licenses">Active OFAC General Licenses for Venezuela</a></li>
+        <li><a href="/explainers/what-are-ofac-sanctions-on-venezuela">What are OFAC sanctions on Venezuela? (plain-English guide)</a></li>
+      </ul>
+    </div>
+  </article>
+
+  {{ cluster_nav(cluster_ctx) }}
+</div>
+{% endblock %}

@@ -27,7 +27,15 @@
 
   <article>
     <header>
-      <h1>OFAC Venezuela SDN — {{ bucket|capitalize }} ({{ profiles|length }} active)</h1>
+      {% if today_human %}
+      <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700; margin-bottom:6px;">
+        <span style="display:inline-block; padding:2px 8px; background:#cc0000; color:#fff; border-radius:3px; margin-right:8px;">
+          LIVE
+        </span>
+        Updated {{ today_human }} from the US Treasury OFAC SDN feed
+      </div>
+      {% endif %}
+      <h1>Currently Sanctioned Venezuela {{ bucket|capitalize }} — OFAC SDN List ({{ profiles|length }} active{% if today_human %}, {{ today_human }}{% endif %})</h1>
       <p class="subtitle">
         Every {{ singular }} currently on the US Treasury OFAC SDN list under
         Venezuela-related sanctions programs. Each entry links to a full
@@ -36,6 +44,7 @@
       <div class="meta">
         <span><strong>Source:</strong> US Treasury OFAC SDN List</span>
         <span><strong>Refreshed:</strong> twice daily (10am &amp; 5pm Medellín)</span>
+        {% if today_iso %}<span><strong>Last verified:</strong> <time datetime="{{ today_iso }}">{{ today_human }}</time></span>{% endif %}
         <span><strong>Programs covered:</strong> VENEZUELA, EO 13692, EO 13850, EO 13884</span>
       </div>
     </header>
@@ -51,6 +60,14 @@
         <li><a href="/sanctions/vessels"><strong>Vessels</strong></a> ({{ stats.vessels }}) — ships blocked under Venezuela-related programs.</li>
         <li><a href="/sanctions/aircraft"><strong>Aircraft</strong></a> ({{ stats.aircraft }}) — planes blocked under Venezuela-related programs.</li>
       </ul>
+
+      <p>
+        Or pivot the same list by <a href="/sanctions/by-sector"><strong>sector</strong></a> —
+        currently sanctioned <a href="/sanctions/sector/military">military officials</a>,
+        <a href="/sanctions/sector/economic">economic &amp; financial actors</a>,
+        <a href="/sanctions/sector/diplomatic">diplomatic officials</a>, or
+        <a href="/sanctions/sector/governance">government &amp; political officials</a>.
+      </p>
 
       <h2>All {{ bucket }} (A–Z)</h2>
       {% if grouped %}

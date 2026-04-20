@@ -73,6 +73,26 @@
     <a class="stat-card" href="/sanctions/aircraft" style="text-decoration:none;color:inherit;"><span class="num">{{ stats.aircraft }}</span><span class="lbl">Aircraft →</span></a>
   </div>
 
+  {# Sector pivot — surfaces the by-sector view as a parallel callout
+     to the entity-type stats row above. Built specifically to capture
+     the "ofac sdn list current military, economic, diplomatic" search
+     intent (our top GSC query) by linking out to the four sector pages
+     with the exact category words the searcher used. #}
+  {% if sector_stats %}
+  <div style="background: var(--sr-gray-bg); border-left: 3px solid var(--sr-blue); padding: 14px 18px; margin: 0 0 24px;">
+    <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.7px; color:var(--sr-gray-text); font-weight:700; margin-bottom:8px;">
+      Browse by sector
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:8px 18px; font-size:14px;">
+      <a href="/sanctions/sector/military"><strong>Military</strong> ({{ sector_stats.military }})</a>
+      <a href="/sanctions/sector/economic"><strong>Economic</strong> ({{ sector_stats.economic }})</a>
+      <a href="/sanctions/sector/diplomatic"><strong>Diplomatic</strong> ({{ sector_stats.diplomatic }})</a>
+      <a href="/sanctions/sector/governance"><strong>Governance</strong> ({{ sector_stats.governance }})</a>
+      <a href="/sanctions/by-sector" style="margin-left:auto; color:var(--sr-red); font-weight:700;">All sectors →</a>
+    </div>
+  </div>
+  {% endif %}
+
   {# Each stat card above links to a full A-Z directory; the search table
      below stays the fast-filter UX. Per-name profile pages
      (/sanctions/<bucket>/<slug>) are linked from those directories. #}

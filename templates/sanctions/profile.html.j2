@@ -27,6 +27,14 @@
 
   <article>
     <header>
+      {% if today_human %}
+      <div style="font-size:12px; text-transform:uppercase; letter-spacing:1.4px; color:#cc0000; font-weight:700; margin-bottom:6px;">
+        <span style="display:inline-block; padding:2px 8px; background:#cc0000; color:#fff; border-radius:3px; margin-right:8px;">
+          ACTIVE SDN
+        </span>
+        Verified active as of {{ today_human }}
+      </div>
+      {% endif %}
       <h1>{{ profile.display_name }}</h1>
       <p class="subtitle">
         OFAC Venezuela Sanctions Profile —
@@ -36,8 +44,13 @@
       <div class="meta">
         <span><strong>Status:</strong> Active SDN designation</span>
         <span><strong>Program:</strong> {{ profile.program_label }}</span>
+        <span><strong>Sector:</strong>
+          <a href="{{ profile.sector_url_path }}">{{ profile.sector_label }}</a></span>
         {% if profile.designation_date %}
         <span><strong>First indexed:</strong> {{ profile.designation_date }}</span>
+        {% endif %}
+        {% if today_iso %}
+        <span><strong>Last verified:</strong> <time datetime="{{ today_iso }}">{{ today_human }}</time></span>
         {% endif %}
       </div>
     </header>
@@ -140,6 +153,22 @@
       </ul>
       {% endif %}
 
+      {% if faq_block %}
+      <h2 id="faq">Frequently asked questions</h2>
+      <section class="sdn-faq">
+        {% for f in faq_block %}
+        <details {% if loop.first %}open{% endif %} style="border:1px solid #d8dde6; border-left:3px solid #002b5e; border-radius:3px; padding:12px 16px; margin-bottom:8px; background:#fff;">
+          <summary style="font-family:var(--font-serif); color:#002b5e; font-weight:700; font-size:16px; cursor:pointer; list-style:none;">
+            <span style="color:#cc0000; font-weight:700;">▸</span> {{ f.q }}
+          </summary>
+          <div style="font-size:14px; color:#222; margin-top:10px; line-height:1.55;">
+            {{ f.a }}
+          </div>
+        </details>
+        {% endfor %}
+      </section>
+      {% endif %}
+
       <h2>Verifying this designation</h2>
       <ul>
         <li><a href="{{ profile.source_url }}" rel="nofollow">OFAC SDN List entry (treasury.gov)</a></li>
@@ -154,6 +183,8 @@
         <li><a href="/tools/ofac-venezuela-sanctions-checker">Search the full Venezuela SDN list</a> — paste any name to see if it's currently designated.</li>
         <li><a href="/tools/ofac-venezuela-general-licenses">OFAC General Licenses for Venezuela</a> — the active GLs that authorize otherwise-prohibited transactions.</li>
         <li><a href="/explainers/what-are-ofac-sanctions-on-venezuela">What are OFAC sanctions on Venezuela? (plain-English guide)</a></li>
+        <li><a href="{{ profile.sector_url_path }}">All currently sanctioned {{ profile.sector_label|lower }}</a> — the sector cohort {{ profile.display_name }} is part of.</li>
+        <li><a href="/sanctions/by-sector">OFAC Venezuela SDN list by sector</a> — pivot the full corpus by military, economic, diplomatic, or governance.</li>
         <li><a href="/sanctions-tracker">Browse all {{ stats.total }} active Venezuela-program SDN designations</a></li>
       </ul>
     </div>

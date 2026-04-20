@@ -59,6 +59,16 @@
   .related-cohort a small { display: block; font-weight: 400; color: var(--sr-gray-text); font-size: 12px; margin-top: 2px; }
 
   .methodology { font-size: 13px; color: var(--sr-gray-text); margin-top: 26px; padding: 14px 18px; background: var(--sr-gray-bg); border-radius: 4px; }
+
+  .faq-block { margin: 26px 0 18px; }
+  .faq-block h2 { font-family: var(--font-serif); color: var(--sr-blue-dark); font-size: 22px; margin-bottom: 12px; }
+  .faq-block details { border: 1px solid var(--sr-gray-light); border-left: 3px solid var(--sr-blue); border-radius: 3px; padding: 12px 16px; margin-bottom: 8px; background: var(--white); }
+  .faq-block details[open] { border-left-color: var(--sr-red); }
+  .faq-block summary { font-family: var(--font-serif); color: var(--sr-blue-dark); font-weight: 700; font-size: 16px; cursor: pointer; list-style: none; }
+  .faq-block summary::-webkit-details-marker { display: none; }
+  .faq-block summary::before { content: "▸ "; color: var(--sr-red); font-weight: 700; }
+  .faq-block details[open] summary::before { content: "▾ "; }
+  .faq-block .faq-answer { font-size: 14px; color: var(--sr-dark-text); margin-top: 10px; line-height: 1.55; }
 </style>
 {% endblock %}
 
@@ -264,9 +274,22 @@
         before transacting.
       </div>
 
+      {% if faq_block %}
+      <section class="faq-block" id="faq">
+        <h2>Frequently asked questions</h2>
+        {% for f in faq_block %}
+        <details {% if loop.first %}open{% endif %}>
+          <summary>{{ f.q }}</summary>
+          <div class="faq-answer">{{ f.a }}</div>
+        </details>
+        {% endfor %}
+      </section>
+      {% endif %}
+
       <h2>Useful tools</h2>
       <ul>
         <li><a href="/tools/public-company-venezuela-exposure-check">Look up another public company's Venezuela exposure</a></li>
+        <li><a href="/tools/sec-edgar-venezuela-impairment-search">SEC EDGAR Venezuela / PDVSA / impairment search</a> — pre-canned full-text search across S&amp;P 500 10-K and 20-F filings</li>
         <li><a href="/tools/ofac-venezuela-sanctions-checker">OFAC Venezuela sanctions checker</a> — fuzzy SDN search by name or ID</li>
         <li><a href="/tools/ofac-venezuela-general-licenses">OFAC Venezuela general licenses lookup</a></li>
         <li><a href="/sanctions-tracker">Browse all active OFAC Venezuela SDN designations</a></li>
