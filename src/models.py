@@ -61,6 +61,7 @@ class SourceType(str, enum.Enum):
     TRAVEL_ADVISORY = "travel_advisory"
     NEWSDATA = "newsdata"
     EIA = "eia"
+    GOOGLE_NEWS = "google_news"
 
 
 class CredibilityTier(str, enum.Enum):
@@ -371,6 +372,7 @@ def init_db(*, force: bool = False):
             return
         Base.metadata.create_all(engine)
         _ensure_columns()
+        _ensure_enum_values()
         _db_initialized = True
 
 
@@ -404,3 +406,39 @@ def _ensure_columns() -> None:
             conn.execute(
                 sa_text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
             )
+
+
+# ── Enum value additions ───────────────────────────────────────────────
+# Postgres enum types are immutable once created — SQLAlchemy's
+# create_all() will create the enum with the values present at first
+# run, but it WILL NOT add new values when the Python enum grows. We
+# have to ALTER TYPE manually. SQLite stores enum columns as VARCHAR
+# so this is a no-op there — the column already accepts any string.
+#
+# Idempotent via "ADD VALUE IF NOT EXISTS". The ALTER must run outside
+# an explicit transaction on older PG versions, so we use AUTOCOMMIT.
+# Failures are logged but never raise — a missing enum value will surface
+# as a row-insert error downstream and is preferable to a crashed init.
+_SOURCE_TYPE_ENUM_ADDITIONS: tuple[tuple[str, str], ...] = (
+    ("source_type", "google_news"),
+)
+
+
+def _ensure_enum_values() -> None:
+    if engine.dialect.name != "postgresql":
+        return
+
+    import logging
+    log = logging.getLogger(__name__)
+
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+        for enum_name, value in _SOURCE_TYPE_ENUM_ADDITIONS:
+            try:
+                conn.execute(
+                    sa_text(f"ALTER TYPE {enum_name} ADD VALUE IF NOT EXISTS '{value}'")
+                )
+            except Exception as exc:
+                log.warning(
+                    "Could not add enum value %r to %s (continuing anyway): %s",
+                    value, enum_name, exc,
+                )

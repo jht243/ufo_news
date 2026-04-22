@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     # LLM Analysis
     openai_api_key: str = ""
     openai_model: str = "gpt-4o"
+    # Cheaper model used for short, prose-only generation tasks where the
+    # facts are already structured (e.g. /lab entity-page narratives).
+    # Keeps cost trivial: ~$0.0002/page at gpt-4o-mini pricing, and we
+    # cache by content fingerprint so reruns are free. Override via
+    # OPENAI_NARRATIVE_MODEL env var.
+    openai_narrative_model: str = "gpt-4o-mini"
     analysis_min_relevance: int = 5
     # Wide enough to cover a full year of backfilled official-source content
     # by default. Override via REPORT_LOOKBACK_DAYS in env if you want a
@@ -96,6 +102,16 @@ class Settings(BaseSettings):
     blog_gen_min_relevance: int = 5
     blog_gen_lookback_days: int = 14
     blog_gen_max_words: int = 900
+
+    # ── Google News intake cap ─────────────────────────────────────────
+    # Maximum number of NEW Google News articles to persist per
+    # calendar day. The pipeline ranks all candidates by an
+    # investor-interest heuristic and persists only the top N. This
+    # is intentionally aligned with blog_gen_budget_per_run so that
+    # every persisted article has a 1:1 chance of becoming a blog
+    # post on the same cron tick. Set to 0 to disable Google News
+    # intake entirely without removing the scraper.
+    google_news_daily_cap: int = 6
 
     # ── Distribution: IndexNow (Bing, Yandex, Seznam, Naver, Mojeek) ──
     # The IndexNow key — generated in Bing Webmaster Tools at

@@ -244,6 +244,10 @@ def _entry_metadata(item, source_table: str) -> dict:
         elif item.source == SourceType.GDELT:
             source_name = (item.extra_metadata or {}).get("domain") or item.source_name or "International Press"
             credibility = "TIER2"
+        elif item.source == SourceType.GOOGLE_NEWS:
+            meta = item.extra_metadata or {}
+            source_name = meta.get("publisher") or meta.get("publisher_domain") or "International Press"
+            credibility = "TIER1" if (item.credibility and item.credibility.value == "tier1") else "TIER2"
         else:
             source_name = item.source_name or item.source.value
             credibility = "TIER1"

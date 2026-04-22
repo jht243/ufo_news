@@ -86,6 +86,7 @@ SOURCE_DISPLAY_MAP = {
     SourceType.FEDERAL_REGISTER: "Federal Register",
     SourceType.OFAC_SDN: "OFAC SDN List",
     SourceType.GDELT: None,
+    SourceType.GOOGLE_NEWS: None,
     SourceType.BCV_RATES: "BCV",
     SourceType.TRAVEL_ADVISORY: "State Dept",
     SourceType.ASAMBLEA_NACIONAL: "Asamblea Nacional",
@@ -219,6 +220,12 @@ def _build_entries(ext_articles, assembly_news) -> list[dict]:
                 domain = (item.extra_metadata or {}).get("domain", "")
                 source_display = domain or item.source_name or "International Press"
                 trust_label_default = f"Via GDELT — {source_display}"
+            elif item.source == SourceType.GOOGLE_NEWS:
+                meta = item.extra_metadata or {}
+                publisher = meta.get("publisher") or ""
+                publisher_domain = meta.get("publisher_domain") or ""
+                source_display = publisher or publisher_domain or "International Press"
+                trust_label_default = f"Via Google News — {source_display}"
         else:
             source_display = "Asamblea Nacional"
             trust_label_default = "State Media"
