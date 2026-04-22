@@ -1304,14 +1304,22 @@ def _build_seo(entries: list[dict], generated_at: datetime) -> dict:
     Build the SEO context (meta tags, Open Graph, Twitter, canonical) for
     the home report page.
 
-    The <title> is intentionally pinned to a stable brand + value-prop
-    pattern — only the trailing "Updated <date>" segment moves. A title
-    that fully rotates day-to-day fragments Google's authority signal
-    for the homepage URL; pinning the first half consolidates ranking
-    weight on a single canonical phrase.
-
-    The meta description still rotates with the freshest takeaway,
-    since description churn is fine and helps SERP CTR.
+    Title and description are both stable and SERP-budget-aware:
+      - Title ≤65 chars so it doesn't truncate. Leads with the two top
+        search intents ("Venezuela Investment", "OFAC Sanctions") and
+        ends with the brand. No day-level date — daily title rotation
+        fragments Google's authority signal for the homepage URL.
+      - Description ≤160 chars so the full snippet displays in SERPs.
+        Stable copy with a month-level freshness tag (changes 12x/year,
+        not 365x). Previously this rotated with the first briefing's
+        takeaway; that produced incoherent fragments like "The BCV's
+        official exchange rate of 481.22 VES/USD, compared to the
+        parallel market rate of 620.71…" that read fine inside a
+        briefing card but useless as a homepage SERP snippet, so
+        Google would discard the meta and synthesize its own —
+        meaning we lost control of the SERP entry entirely. A stable,
+        keyword-rich description gives Google a high-quality snippet
+        it'll actually use.
     """
     base = settings.site_url.rstrip("/")
 
@@ -1323,28 +1331,14 @@ def _build_seo(entries: list[dict], generated_at: datetime) -> dict:
         s for s, _ in sorted(sector_counter.items(), key=lambda kv: kv[1], reverse=True)
     ][:3]
 
-    title = (
-        "Caracas Research — Venezuela Investment Intelligence "
-        f"| Updated {generated_at.strftime('%b %d, %Y')}"
-    )
+    title = "Venezuela Investment & OFAC Sanctions Tracker — Caracas Research"
 
-    if entries:
-        first = entries[0]
-        lead = first.get("takeaway_plain") or first.get("summary") or ""
-        lead = " ".join(str(lead).split())
-        if len(lead) > 220:
-            lead = lead[:217].rsplit(" ", 1)[0] + "…"
-        description = (
-            f"Daily Venezuelan investment briefing — {lead} "
-            "Tracking OFAC sanctions, Asamblea Nacional, Gaceta Oficial, BCV rates."
-        )
-    else:
-        description = (
-            "Daily Venezuelan investment & sanctions briefing for global investors. "
-            "Real-time monitoring of OFAC SDN, US Federal Register general licenses, "
-            "Asamblea Nacional legislation, Gaceta Oficial decrees, BCV exchange rates, "
-            "and US State Department travel advisories."
-        )
+    month_year = generated_at.strftime("%B %Y")
+    description = (
+        f"Daily Venezuela investment & OFAC sanctions briefing ({month_year}). "
+        "Live US Treasury SDN tracker, general licenses, BCV rates, "
+        "Asamblea Nacional decrees."
+    )
 
     keywords = [
         "invest in Venezuela",
