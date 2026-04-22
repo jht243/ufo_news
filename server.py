@@ -2064,8 +2064,12 @@ def sanctions_profile_page(bucket: str, slug: str):
         # Build the schema.org @graph: BreadcrumbList + the bucket-specific
         # entity type. We use Person for individuals (Knowledge-Graph eligible),
         # Organization for entities (B2B compliance crawlers respect it),
-        # Vehicle for both vessels and aircraft (closest schema.org type that
-        # supports identifier fields).
+        # and Thing for vessels and aircraft. We deliberately avoid Vehicle
+        # here because schema.org/Vehicle is a subtype of Product, which makes
+        # Google's Product Rich Results validator demand offers/review/
+        # aggregateRating — none of which apply to a sanctioned asset. Thing
+        # keeps the identifier/description fields without triggering the
+        # commerce-oriented validator.
         breadcrumb = {
             "@type": "BreadcrumbList",
             "itemListElement": [
@@ -2128,19 +2132,25 @@ def sanctions_profile_page(bucket: str, slug: str):
             if identifiers:
                 entity_node["identifier"] = identifiers
         else:
+            asset_kind = "vessel" if profile.bucket == "vessels" else "aircraft"
             entity_node = {
-                "@type": "Vehicle",
-                "@id": f"{canonical}#vehicle",
+                "@type": "Thing",
+                "@id": f"{canonical}#asset",
                 "name": profile.display_name,
                 "alternateName": profile.raw_name,
                 "url": canonical,
                 "description": description,
-                "vehicleConfiguration": "vessel" if profile.bucket == "vessels" else "aircraft",
             }
+            extra_props: list = [
+                {"@type": "PropertyValue", "propertyID": "AssetType", "value": asset_kind},
+            ]
             if profile.parsed.get("aircraft_model"):
-                entity_node["model"] = profile.parsed["aircraft_model"]
+                extra_props.append({"@type": "PropertyValue", "propertyID": "AircraftModel", "value": profile.parsed["aircraft_model"]})
             if profile.parsed.get("vessel_year"):
-                entity_node["vehicleModelDate"] = profile.parsed["vessel_year"]
+                extra_props.append({"@type": "PropertyValue", "propertyID": "YearOfBuild", "value": profile.parsed["vessel_year"]})
+            if profile.parsed.get("vessel_flag"):
+                extra_props.append({"@type": "PropertyValue", "propertyID": "Flag", "value": profile.parsed["vessel_flag"]})
+            entity_node["additionalProperty"] = extra_props
             if identifiers:
                 entity_node["identifier"] = identifiers
 

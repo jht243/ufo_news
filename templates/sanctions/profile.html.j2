@@ -4,11 +4,14 @@
   "vicente carretero" or "saab halabi" lands directly here, with the
   matching name in the SERP snippet.
 
-  Structured data: Person / Organization / Vehicle (vessel) / Vehicle
-  (aircraft) inside an @graph that also carries BreadcrumbList. We
-  intentionally lean on schema.org/Person + nationality/birthDate/
-  identifier so Knowledge Panel features have the structured fields
-  they need to recognise the page as authoritative.
+  Structured data: Person / Organization / Thing (vessels and aircraft)
+  inside an @graph that also carries BreadcrumbList. We intentionally
+  lean on schema.org/Person + nationality/birthDate/identifier so
+  Knowledge Panel features have the structured fields they need to
+  recognise the page as authoritative. Vessels and aircraft use Thing
+  rather than Vehicle so Google's Product Rich Results validator does
+  not flag them for missing offers/review/aggregateRating — these
+  assets are sanctions targets, not commercial products.
 #}
 {% extends "_base.html.j2" %}
 {% from "_cluster_nav.html.j2" import cluster_nav %}
