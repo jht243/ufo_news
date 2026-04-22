@@ -1893,19 +1893,27 @@ def sanctions_index_page(bucket: str):
         # tag inside ~60 chars, and pushes the longer descriptive
         # frame into the description. "US Treasury OFAC" in the
         # description carries the US-authority signal we're missing.
-        plural = singular if singular.endswith("s") else f"{singular}s"
-        bucket_noun = {
+        # Bucket-specific noun in two casings so we don't hit the
+        # naive "{singular}s" pluralisation bug ("entitys", "aircrafts").
+        # Aircraft is uninflected; entity → entities.
+        bucket_noun_title = {
             "individuals": "Venezuelan Individuals",
             "entities":    "Venezuelan Entities",
             "vessels":     "Venezuelan Vessels",
             "aircraft":    "Venezuelan Aircraft",
         }.get(bucket, f"Venezuelan {bucket.capitalize()}")
+        bucket_noun_lower = {
+            "individuals": "Venezuelan individuals",
+            "entities":    "Venezuelan entities",
+            "vessels":     "Venezuelan vessels",
+            "aircraft":    "Venezuelan aircraft",
+        }.get(bucket, f"Venezuelan {bucket}")
         seo = {
             "title": (
-                f"OFAC SDN: {len(profiles)} Sanctioned {bucket_noun} ({today_human})"
+                f"OFAC SDN: {len(profiles)} Sanctioned {bucket_noun_title} ({today_human})"
             )[:120],
             "description": (
-                f"All {len(profiles)} Venezuelan {plural} on the US Treasury "
+                f"All {len(profiles)} {bucket_noun_lower} on the US Treasury "
                 f"OFAC SDN list ({today_human}). A–Z directory with program "
                 f"codes, executive orders, and direct OFAC source links."
             )[:300],
