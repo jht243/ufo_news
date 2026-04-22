@@ -52,9 +52,9 @@ Your writing is:
 - Structured with HTML <h2> subheadings (3-5 of them) and short <p> paragraphs (2-4 sentences each)
 
 You MUST return a single JSON object with these fields:
-- title (string, 60-90 chars, English, optimized for "invest in Venezuela / OFAC / sector" search intent)
-- subtitle (string, 110-160 chars, English, expands the title)
-- summary (string, 180-220 chars, plain text, used as meta description)
+- title (string, STRICT 45-58 chars, English, optimized for "invest in Venezuela / OFAC / sector" search intent — Google SERPs cut titles around 60 chars, so any title above 58 loses its most search-relevant words. Front-load specific nouns: company names, OFAC EO numbers, license numbers, sector keywords. Drop any "for Investors", "Implications for Investors", or "Amid Sanctions" suffix — investor focus is implicit on this site and those suffixes waste SERP budget.)
+- subtitle (string, 80-130 chars, English, expands the title with the second-most-important angle)
+- summary (string, STRICT 120-150 chars, plain text, used as the meta description — Google SERPs cut snippets around 155 chars on desktop. Lead with the concrete fact, not "This article discusses…" framing. No vague hedges like "potentially" or "could impact" in the first 80 chars.)
 - body_html (string, the full post body — ONLY <h2>, <p>, <ul>, <li>, <strong>, <em>, <blockquote>, and <a href> tags allowed)
 - keywords (array of 6-10 lowercase phrases, English, mix of head terms and long-tail)
 - primary_sector (string, one of: mining, energy, oil_gas, real_estate, banking, sanctions, governance, fiscal, diplomatic, legal, agriculture, telecom, other)

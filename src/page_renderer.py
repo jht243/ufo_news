@@ -35,6 +35,35 @@ def _base_url() -> str:
     return settings.site_url.rstrip("/")
 
 
+# Google's SERP truncates titles around 60 chars (varies by font width)
+# and meta descriptions around 155-160 chars on desktop, 120 on mobile.
+# Going over those budgets means the most search-relevant suffix
+# (year, "for Investors", sector qualifier) gets cut. We trim slightly
+# below the desktop max to leave headroom for the favicon + brand
+# Google sometimes appends, and to stay safe on the mobile description
+# budget when the snippet is short.
+_SERP_TITLE_MAX = 60
+_SERP_DESC_MAX = 155
+
+
+def _serp_truncate(s: str | None, limit: int) -> str:
+    """
+    Hard cap a string at `limit` chars, cutting at the last word
+    boundary inside the budget so we never publish a half-word like
+    "Investme…". No ellipsis appended — Google does not visually
+    reward "…" and a clean word ending reads as the canonical
+    short form rather than a truncation artifact.
+    """
+    if not s:
+        return ""
+    s = " ".join(str(s).split())  # collapse internal whitespace
+    if len(s) <= limit:
+        return s
+    cut = s[:limit].rsplit(" ", 1)[0]
+    # Strip trailing punctuation that looks weird mid-sentence.
+    return cut.rstrip(" ,;:—-")
+
+
 def _iso(d: date | datetime | None) -> str:
     if d is None:
         return ""
@@ -66,9 +95,20 @@ def render_blog_post(post, *, related: list | None = None) -> str:
     if isinstance(keywords, str):
         keywords = [k.strip() for k in keywords.split(",") if k.strip()]
 
+    # SERP-budget enforcement: blog posts pre-2026-04 were shipped with
+    # raw post.title (up to 110 chars) and raw post.summary (up to 300
+    # chars) into <title> and meta description. The April 2026 SEO
+    # audit found 100% of sampled posts truncated in SERPs, with the
+    # most search-relevant suffix being the part Google cut (year,
+    # sector qualifier, "for Investors"). _serp_truncate caps at the
+    # desktop SERP budgets and cuts at a word boundary so we never
+    # publish a mid-word truncation.
+    seo_title = _serp_truncate(post.title, _SERP_TITLE_MAX)
+    seo_description = _serp_truncate(post.summary or post.subtitle, _SERP_DESC_MAX)
+
     seo = {
-        "title": (post.title or "")[:110],
-        "description": (post.summary or post.subtitle or "")[:300],
+        "title": seo_title,
+        "description": seo_description,
         "keywords": ", ".join(keywords) if keywords else "",
         "news_keywords": ", ".join(keywords[:10]) if keywords else "",
         "canonical": canonical,
@@ -92,13 +132,19 @@ def render_blog_post(post, *, related: list | None = None) -> str:
         ],
     }
 
+    # JSON-LD `headline` has a hard Google policy cap of 110 chars for
+    # NewsArticle eligibility. We use the FULL post.title here (capped
+    # cleanly at 110 with word-boundary truncation), not the 60-char
+    # SERP title — Google reads headline as a structured-data signal
+    # for Top Stories carousel ranking, separate from the <title> tag
+    # it shows in SERPs.
     news_article = {
         "@type": "NewsArticle",
         "@id": f"{canonical}#article",
         "url": canonical,
         "mainEntityOfPage": {"@type": "WebPage", "@id": canonical, "name": post.title},
-        "headline": (post.title or "")[:110],
-        "description": (post.summary or "")[:300],
+        "headline": _serp_truncate(post.title, 110),
+        "description": _serp_truncate(post.summary, 250),
         "image": [og_image],
         "datePublished": _iso(post.published_date),
         "dateModified": _iso(post.updated_at or post.created_at or post.published_date),
@@ -273,7 +319,7 @@ _LANDING_PAGE_SEO_OVERRIDES: dict[str, dict] = {
     # we see clustered in adjacent GSC queries (definition, who is
     # sanctioned, General Licenses, who must comply).
     "/explainers/what-are-ofac-sanctions-on-venezuela": {
-        "title": "OFAC Venezuela Sanctions Explained (2026): EOs 13692, 13850 & 13884",
+        "title": "OFAC Venezuela Sanctions: EOs 13692, 13850 & 13884 (2026)",
         "description": (
             "Plain-English guide to all four US Treasury OFAC programs "
             "targeting Venezuela: who's blocked, what General Licenses "
@@ -340,11 +386,174 @@ _LANDING_PAGE_SEO_OVERRIDES: dict[str, dict] = {
     # mined for, with year-tag and the OFAC overlay every investor
     # asks about.
     "/sectors/mining": {
-        "title": "Venezuela Mining 2026: Gold, Coltan & Diamond Deals Under OFAC",
+        "title": "Venezuela Mining 2026: Gold, Coltan & Diamond Under OFAC",
         "description": (
             "Where Venezuela's gold, coltan, and diamond opportunities "
             "still exist in 2026 under the Organic Mining Law and OFAC "
             "sanctions. Investor diligence guide."
+        ),
+    },
+
+    # ─────────────────────────────────────────────────────────────────
+    # April 2026 sector + explainer SEO pass.
+    #
+    # Every sector page was previously generated by the LLM with the
+    # same template ("Venezuela X Sector: Regulatory Framework, Sanctions,
+    # Deal Flow, Risks"). Result: titles 66-73 chars (truncated at ~60
+    # in SERPs, losing the most search-relevant suffix), descriptions
+    # 175-192 chars (truncated at ~155), and 13 pages reading nearly
+    # identical to Google's quality classifier — diluting per-page
+    # ranking authority. Each override below:
+    #   - Drops the redundant "Sector" word ("Banking" already implies
+    #     a sector, frees ~7 chars of title budget).
+    #   - Front-loads the highest-intent search vocabulary for that
+    #     specific industry (PDVSA + Chevron for oil&gas, BCV for
+    #     banking, CONATEL for telecom, etc.) instead of generic
+    #     "regulation" / "deal flow" boilerplate.
+    #   - Adds a year-tag for freshness without burning daily
+    #     authority signal.
+    #   - Stays inside _SERP_TITLE_MAX (60) and _SERP_DESC_MAX (155).
+    # ─────────────────────────────────────────────────────────────────
+
+    "/sectors/oil-gas": {
+        "title": "Venezuela Oil & Gas 2026: PDVSA, Chevron License & OFAC",
+        "description": (
+            "Venezuela's oil & gas sector under OFAC sanctions: PDVSA "
+            "structure, Chevron general license, hydrocarbons law reform, "
+            "and investor due diligence (2026)."
+        ),
+    },
+    "/sectors/banking": {
+        "title": "Venezuela Banking 2026: BCV, OFAC & Correspondent Risk",
+        "description": (
+            "Venezuela's banking sector under US Treasury OFAC: BCV "
+            "oversight, compliance pathways, correspondent risk, and "
+            "investor due diligence (2026)."
+        ),
+    },
+    "/sectors/energy": {
+        "title": "Venezuela Energy 2026: Power Grid, OFAC & PDVSA Reform",
+        "description": (
+            "Venezuela's energy sector in 2026: power grid status, "
+            "hydrocarbons law reform, PDVSA, OFAC licensing exposure, "
+            "and investor due diligence."
+        ),
+    },
+    "/sectors/real-estate": {
+        "title": "Venezuela Real Estate 2026: Caracas Property & FX Risk",
+        "description": (
+            "Venezuela real estate market in 2026: Caracas property law, "
+            "tenancy rules, foreign-exchange risk, OFAC exposure, and "
+            "investor due diligence."
+        ),
+    },
+    "/sectors/sanctions": {
+        "title": "Venezuela Sanctions 2026: OFAC Licenses & Risk Map",
+        "description": (
+            "Venezuela sanctions landscape (2026): OFAC licensing "
+            "pathways, EU dynamics, local legal reforms, and "
+            "compliance-focused investor due diligence."
+        ),
+    },
+    "/sectors/telecom": {
+        "title": "Venezuela Telecom 2026: CONATEL, OFAC & Investor Risk",
+        "description": (
+            "Venezuela's telecom sector in 2026: CONATEL rules, market "
+            "structure, OFAC sanctions exposure, and an investor due "
+            "diligence guide."
+        ),
+    },
+    "/sectors/agriculture": {
+        "title": "Venezuela Agriculture 2026: Food Production & Sanctions",
+        "description": (
+            "Venezuela agriculture in 2026: food production policy, land "
+            "tenure, OFAC exposure, and investor due diligence on "
+            "agribusiness deals."
+        ),
+    },
+    "/sectors/diplomatic": {
+        "title": "Venezuela Diplomacy 2026: US, EU & Sanctions Engagement",
+        "description": (
+            "Venezuela's diplomatic landscape in 2026: US, EU, and Latin "
+            "American engagement under OFAC sanctions, plus investor "
+            "access considerations."
+        ),
+    },
+    "/sectors/economic": {
+        "title": "Venezuela Economy 2026: Inflation, FX & Sanctions Risk",
+        "description": (
+            "Venezuela's economic outlook for 2026: inflation, FX policy, "
+            "OFAC sanctions, and the deal flow signals foreign investors "
+            "are tracking month-by-month."
+        ),
+    },
+    "/sectors/governance": {
+        "title": "Venezuela Governance 2026: Government & Investor Risk",
+        "description": (
+            "Venezuela governance in 2026: institutional structure, "
+            "administrative reforms, OFAC exposure, and political risk "
+            "for foreign investors."
+        ),
+    },
+    "/sectors/legal": {
+        "title": "Venezuela Legal System 2026: Courts, Reform & Risk",
+        "description": (
+            "Venezuela's legal system in 2026: court structure, civil-law "
+            "reforms, sanctions interactions, and an investor due "
+            "diligence guide for foreign deals."
+        ),
+    },
+    "/sectors/tourism": {
+        "title": "Venezuela Tourism 2026: Travel Status & Sanctions Risk",
+        "description": (
+            "Venezuela tourism in 2026: travel advisory status, OFAC "
+            "sanctions exposure for hospitality operators, and investor "
+            "due diligence on tourism deals."
+        ),
+    },
+
+    # Explainers — 4 of 5 had truncated <title> or <meta description>
+    # in the April 2026 audit. (The 5th, what-are-ofac-sanctions-on-
+    # venezuela, is overridden above.)
+
+    "/explainers": {
+        "title": "Venezuela Investor Explainers — Plain-English Guides",
+        "description": (
+            "Plain-English guides for foreign investors on Venezuela: "
+            "OFAC sanctions, the BCV, the bolívar, buying bonds, and "
+            "operating in Caracas."
+        ),
+    },
+    "/explainers/doing-business-in-caracas": {
+        "title": "Doing Business in Caracas 2026: Foreign Investor Guide",
+        "description": (
+            "Practical 2026 guide for foreign investors operating in "
+            "Caracas: legal setup, banking, OFAC compliance, hiring, "
+            "contracts, and day-to-day risk."
+        ),
+    },
+    "/explainers/how-to-buy-venezuelan-bonds": {
+        "title": "How to Buy Venezuelan Sovereign & PDVSA Bonds (2026)",
+        "description": (
+            "How investors buy Venezuelan sovereign and PDVSA bonds in "
+            "2026: trading venues, custody, OFAC constraints, pricing, "
+            "and key risks."
+        ),
+    },
+    "/explainers/venezuelan-bolivar-explained": {
+        "title": "Venezuelan Bolívar 2026: History, Devaluations & FX Rate",
+        "description": (
+            "What the Venezuelan bolívar is, why it has devalued "
+            "repeatedly, and how official vs market exchange rates "
+            "work today — with a 2026 monitoring guide."
+        ),
+    },
+    "/explainers/what-is-the-banco-central-de-venezuela": {
+        "title": "Banco Central de Venezuela (BCV): A 2026 Investor Guide",
+        "description": (
+            "Plain-English 2026 guide to the Banco Central de Venezuela "
+            "(BCV): what it does, how it sets FX rates, and why it "
+            "matters for foreign investors."
         ),
     },
 }
