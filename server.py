@@ -18,6 +18,7 @@ from flask import Flask, send_from_directory, abort, request, jsonify, Response,
 from werkzeug.exceptions import HTTPException
 
 from src.config import settings
+from src.data.visa_requirements import US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS
 from src.storage_remote import (
     fetch_report_html,
     supabase_storage_enabled,
@@ -585,12 +586,247 @@ def tool_visa_requirements():
             jsonld=jsonld,
             current_year=_date.today().year,
             recent_briefings=_fetch_recent_briefings(),
+            us_embassy_eguide_url=US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("visa tool render failed: %s", exc)
+        abort(500)
+
+
+# ---------------------------------------------------------------------------
+# /apply-for-venezuelan-visa cluster
+#
+# Pillar + 3 country/category variants, all rendered from a single template
+# (templates/apply_for_venezuelan_visa.html.j2) using shared content from
+# src/data/visa_application_content.py. The cluster targets high-intent
+# search terms ("apply for venezuelan visa", "venezuela visa for us
+# citizens", "venezuela business visa", "venezuela visa for chinese
+# citizens") that the existing /tools/venezuela-visa-requirements page
+# does not rank for.
+# ---------------------------------------------------------------------------
+
+def _apply_visa_jsonld(*, canonical: str, title: str, description: str, page: dict) -> str:
+    """Build BreadcrumbList + Article + HowTo + FAQPage JSON-LD payload."""
+    from src.page_renderer import _base_url, _iso, settings as _s
+    from datetime import datetime as _dt
+    import json as _json
+
+    base = _base_url()
+    is_pillar = page.get("slug") == ""
+
+    breadcrumbs = [
+        {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+        {"@type": "ListItem", "position": 2, "name": "Invest in Venezuela", "item": f"{base}/invest-in-venezuela"},
+    ]
+    if is_pillar:
+        breadcrumbs.append({"@type": "ListItem", "position": 3, "name": page["page_label"], "item": canonical})
+    else:
+        breadcrumbs.append({"@type": "ListItem", "position": 3, "name": "Apply for a Venezuelan visa", "item": f"{base}/apply-for-venezuelan-visa"})
+        breadcrumbs.append({"@type": "ListItem", "position": 4, "name": page["page_label"], "item": canonical})
+
+    graph: list[dict] = [
+        {"@type": "BreadcrumbList", "itemListElement": breadcrumbs},
+        {
+            "@type": "Article",
+            "@id": f"{canonical}#article",
+            "headline": title,
+            "description": description,
+            "url": canonical,
+            "mainEntityOfPage": canonical,
+            "author": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+            "publisher": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+            "datePublished": _iso(_dt.utcnow()),
+            "dateModified": _iso(_dt.utcnow()),
+            "image": f"{base}/static/og-image.png?v=3",
+        },
+        {
+            "@type": "HowTo",
+            "@id": f"{canonical}#howto",
+            "name": title,
+            "description": description,
+            "totalTime": "PT2H",
+            "step": [
+                {
+                    "@type": "HowToStep",
+                    "position": idx + 1,
+                    "name": s["title"],
+                    "text": s["detail"],
+                    **({"url": s["url"]} if s.get("url") else {}),
+                }
+                for idx, s in enumerate(page.get("steps", []))
+            ],
+        },
+    ]
+
+    faqs = page.get("faqs") or []
+    if faqs:
+        graph.append({
+            "@type": "FAQPage",
+            "@id": f"{canonical}#faq",
+            "mainEntity": [
+                {
+                    "@type": "Question",
+                    "name": q["q"],
+                    "acceptedAnswer": {"@type": "Answer", "text": q["a"]},
+                }
+                for q in faqs
+            ],
+        })
+
+    return _json.dumps({"@context": "https://schema.org", "@graph": graph}, ensure_ascii=False)
+
+
+def _render_apply_visa(page: dict, *, canonical_path: str, title: str,
+                       description: str, keywords: str) -> Response:
+    from src.page_renderer import _env, _base_url, _iso, settings as _s
+    from datetime import date as _date, datetime as _dt
+
+    base = _base_url()
+    canonical = f"{base}{canonical_path}"
+
+    seo = {
+        "title": title,
+        "description": description,
+        "keywords": keywords,
+        "canonical": canonical,
+        "site_name": _s.site_name,
+        "site_url": base,
+        "locale": _s.site_locale,
+        "og_image": f"{base}/static/og-image.png?v=3",
+        "og_type": "article",
+        "section": "Travel",
+        "published_iso": _iso(_dt.utcnow()),
+        "modified_iso": _iso(_dt.utcnow()),
+    }
+
+    jsonld = _apply_visa_jsonld(
+        canonical=canonical,
+        title=title,
+        description=description,
+        page=page,
+    )
+
+    template = _env.get_template("apply_for_venezuelan_visa.html.j2")
+    html = template.render(
+        page=page,
+        is_pillar=page.get("slug") == "",
+        seo=seo,
+        jsonld=jsonld,
+        current_year=_date.today().year,
+        us_embassy_eguide_url=US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
+    )
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/apply-for-venezuelan-visa")
+@app.route("/apply-for-venezuelan-visa/")
+def apply_visa_pillar():
+    """Pillar landing page: how to apply for a Venezuelan visa (e-visa)."""
+    try:
+        from src.data.visa_application_content import get_pillar
+        return _render_apply_visa(
+            page=get_pillar(),
+            canonical_path="/apply-for-venezuelan-visa",
+            title="How to Apply for a Venezuela Visa (2026): E-Visa Process, Fees & Timeline",
+            description=(
+                "Step-by-step guide to applying for a Venezuelan tourist (TR-V) "
+                "or business (TR-N) visa through the Cancillería Digital "
+                "e-visa portal. Documents, the USD 180 fee, the ~15-day "
+                "approval timeline, and FAQs for US citizens, Chinese "
+                "applicants, and business travelers."
+            ),
+            keywords=(
+                "apply for venezuelan visa, venezuela visa application, "
+                "venezuela e-visa, cancilleria digital, venezuela tourist "
+                "visa, venezuela business visa, TR-V visa, TR-N visa, "
+                "venezuela visa fee, venezuela visa timeline"
+            ),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("apply-visa pillar render failed: %s", exc)
+        abort(500)
+
+
+# Per-variant SEO config so each sub-page has its own title/description/keywords
+# tuned to a specific search intent. Keeping these here (rather than in the
+# data module) keeps the SEO copy alongside the route definitions.
+_APPLY_VISA_VARIANT_SEO: dict[str, dict] = {
+    "us-citizens": {
+        "title": "Venezuela Visa for US Citizens (2026): E-Visa Application, Fees & Timeline",
+        "description": (
+            "How US citizens apply for a Venezuelan tourist (TR-V) or "
+            "business (TR-N) visa through the Cancillería Digital e-visa "
+            "portal. The Embassy of Venezuela in Washington DC has been "
+            "closed since 2019 — full step-by-step playbook, USD 180 fee, "
+            "~15-day timeline, and US-specific payment snags."
+        ),
+        "keywords": (
+            "venezuela visa for us citizens, venezuela visa us, apply "
+            "for venezuela visa from usa, venezuela embassy washington dc, "
+            "us citizen venezuela e-visa, venezuela visa cost us"
+        ),
+    },
+    "business-visa": {
+        "title": "Venezuela Business Visa (TR-N): Application Guide for 2026",
+        "description": (
+            "How to apply for the Venezuelan TR-N business visa through "
+            "Cancillería Digital. Corporate invitation letter, SENIAT "
+            "registration requirements, USD 180 fee, ~15-day timeline, "
+            "and OFAC compliance considerations for executives, investors, "
+            "and consultants traveling to Caracas."
+        ),
+        "keywords": (
+            "venezuela business visa, TR-N visa, venezuela executive visa, "
+            "venezuela investor visa, business visa for venezuela, "
+            "venezuela work visa for business, venezuela visa SENIAT, "
+            "corporate invitation letter venezuela"
+        ),
+    },
+    "china": {
+        "title": "Venezuela Visa for Chinese Citizens (2026): Beijing, Shanghai & Hong Kong Routes",
+        "description": (
+            "How Chinese citizens apply for a Venezuelan tourist (L), "
+            "business (F), or investor visa. Beijing embassy and "
+            "Shanghai / Hong Kong consulate filings, plus the online "
+            "Cancillería Digital e-visa channel. Documents, fees, and "
+            "timeline for 2026."
+        ),
+        "keywords": (
+            "venezuela visa for chinese citizens, venezuela visa china, "
+            "embassy of venezuela in beijing, venezuela tourist visa "
+            "china, venezuela business visa china, venezuela investor "
+            "visa china"
+        ),
+    },
+}
+
+
+@app.route("/apply-for-venezuelan-visa/<slug>")
+@app.route("/apply-for-venezuelan-visa/<slug>/")
+def apply_visa_variant(slug: str):
+    """Country/category variants under the visa-application pillar."""
+    try:
+        from src.data.visa_application_content import get_variant
+        page = get_variant(slug)
+        seo_cfg = _APPLY_VISA_VARIANT_SEO.get(slug)
+        if not page or not seo_cfg:
+            abort(404)
+        return _render_apply_visa(
+            page=page,
+            canonical_path=f"/apply-for-venezuelan-visa/{slug}",
+            title=seo_cfg["title"],
+            description=seo_cfg["description"],
+            keywords=seo_cfg["keywords"],
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("apply-visa variant render failed (%s): %s", slug, exc)
         abort(500)
 
 
@@ -3640,6 +3876,7 @@ def travel_page():
             updated_label=_date.today().strftime("%B %-d, %Y"),
             current_year=_date.today().year,
             recent_briefings=_fetch_recent_briefings(),
+            us_embassy_eguide_url=US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
         )
         return Response(html, mimetype="text/html")
     except HTTPException:
@@ -4024,6 +4261,10 @@ def sitemap_xml():
         {"loc": f"{base}/tools/caracas-safety-by-neighborhood", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.6"},
         {"loc": f"{base}/tools/venezuela-investment-roi-calculator", "lastmod": today_iso, "changefreq": "monthly", "priority": "0.6"},
         {"loc": f"{base}/tools/venezuela-visa-requirements", "lastmod": today_iso, "changefreq": "monthly", "priority": "0.6"},
+        {"loc": f"{base}/apply-for-venezuelan-visa", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.85"},
+        {"loc": f"{base}/apply-for-venezuelan-visa/us-citizens", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.8"},
+        {"loc": f"{base}/apply-for-venezuelan-visa/business-visa", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.75"},
+        {"loc": f"{base}/apply-for-venezuelan-visa/china", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.7"},
     ]
 
     dynamic_urls: list[dict] = []

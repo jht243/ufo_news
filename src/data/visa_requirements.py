@@ -21,6 +21,13 @@ links the user back to the relevant embassy / state-department page.
 from __future__ import annotations
 
 
+# US Embassy in Caracas — English walkthrough of the Cancillería Digital
+# e-visa process. Pair this URL everywhere the Spanish-only e-visa portal
+# is promoted (hero CTAs, step links, and the visa tool).
+US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS = (
+    "https://ve.usembassy.gov/venezuela-electronic-visa-application-process-update/"
+)
+
 # As of March 19, 2026 the US Department of State downgraded Venezuela
 # from Level 4 ("Do Not Travel") to Level 3 ("Reconsider Travel"),
 # removing the Wrongful Detention / Unrest / Other risk indicators
@@ -57,20 +64,20 @@ VISA_REQUIREMENTS: list[dict] = [
         # US Embassy in Caracas publishes a plain-English summary of the
         # current process on ve.usembassy.gov.
         "visa_application_url": "https://cancilleriadigital.mppre.gob.ve/",
-        "visa_application_guide_url": "https://ve.usembassy.gov/venezuela-electronic-visa-application-process-update/",
+        "visa_application_guide_url": US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
         "visa_application_warning": "The Embassy of Venezuela in Washington DC has been closed since 2019. Do not look for a US-based consulate — applications run through Venezuela's online e-visa portal.",
         "visa_application_steps": [
             {
                 "title": "Read the US Embassy plain-English summary",
                 "detail": "The US Embassy in Caracas maintains an English-language summary of the current Venezuelan e-visa process. Read it once before opening the Spanish-only application portal so you know what you're filling in.",
-                "url": "https://ve.usembassy.gov/venezuela-electronic-visa-application-process-update/",
-                "url_label": "US Embassy guide",
+                "url": US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
+                "url_label": "Embassy Application Instructions",
             },
             {
                 "title": "Register on Cancillería Digital",
                 "detail": "Create an account on Venezuela's official Ministry of Foreign Affairs (MPPRE) e-visa portal. The interface is in Spanish — use a translator if needed. Click \"regístrate\" on the login screen.",
                 "url": "https://cancilleriadigital.mppre.gob.ve/",
-                "url_label": "Open the portal",
+                "url_label": "Open the e-visa portal",
             },
             {
                 "title": "Complete the electronic application form",
@@ -264,7 +271,7 @@ VISA_REQUIREMENTS: list[dict] = [
                 "title": "Register on Cancillería Digital",
                 "detail": "Venezuela's official online visa portal. Click \"regístrate\" on the login page to create an account, then complete the application form.",
                 "url": "https://cancilleriadigital.mppre.gob.ve/",
-                "url_label": "Open the portal",
+                "url_label": "Open the e-visa portal",
             },
             {
                 "title": "Upload documents and pay the fee",

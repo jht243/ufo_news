@@ -68,6 +68,10 @@ _STATIC_URLS_TO_PING_DAILY = (
     "/explainers",
     "/explainers/what-are-ofac-sanctions-on-venezuela",
     "/travel",
+    "/apply-for-venezuelan-visa",
+    "/apply-for-venezuelan-visa/us-citizens",
+    "/apply-for-venezuelan-visa/business-visa",
+    "/apply-for-venezuelan-visa/china",
 )
 
 

@@ -37,13 +37,17 @@
   .apply-steps .step-num::before { content: counter(step); }
   .apply-steps h4 { font-family: var(--font-sans); font-size: 14.5px; font-weight: 700; color: var(--sr-dark-text); margin: 4px 0 4px; }
   .apply-steps p { font-size: 13.5px; color: var(--sr-gray-text); margin: 0 0 6px; line-height: 1.55; }
+  .apply-steps .step-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
   .apply-steps .step-cta { display: inline-block; font-size: 13px; font-weight: 600; color: #fff; background: var(--sr-blue); padding: 6px 14px; border-radius: 999px; text-decoration: none; }
   .apply-steps .step-cta:hover { background: var(--sr-blue-dark); }
-  .apply-primary-cta { display: inline-block; background: var(--sr-red); color: #fff; padding: 11px 22px; border-radius: 3px; text-decoration: none; font-family: var(--font-sans); font-weight: 700; font-size: 14.5px; margin-top: 4px; }
+  .apply-steps .step-cta-embassy { background: #fff; color: var(--sr-blue); border: 1px solid var(--sr-blue); }
+  .apply-steps .step-cta-embassy:hover { background: var(--sr-blue); color: #fff; }
+  .apply-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 14px; }
+  .apply-primary-cta { display: inline-block; background: var(--sr-red); color: #fff; padding: 11px 22px; border-radius: 3px; text-decoration: none; font-family: var(--font-sans); font-weight: 700; font-size: 14.5px; }
   .apply-primary-cta:hover { background: #a01d18; color: #fff; }
-  .apply-secondary-cta { display: inline-block; padding: 11px 22px; border-radius: 3px; font-family: var(--font-sans); font-weight: 600; font-size: 14px; color: var(--sr-blue-dark); border: 1px solid var(--sr-blue); margin-left: 8px; text-decoration: none; }
+  .apply-secondary-cta { display: inline-block; padding: 11px 22px; border-radius: 3px; font-family: var(--font-sans); font-weight: 600; font-size: 14px; color: var(--sr-blue-dark); border: 1px solid var(--sr-blue); text-decoration: none; }
   .apply-secondary-cta:hover { background: var(--sr-blue); color: #fff; }
-  @media (max-width: 480px) { .apply-secondary-cta { margin: 8px 0 0; display: block; text-align: center; } .apply-primary-cta { display: block; text-align: center; } }
+  @media (max-width: 480px) { .apply-cta-row { flex-direction: column; align-items: stretch; } .apply-primary-cta, .apply-secondary-cta { display: block; text-align: center; } }
 </style>
 {% endblock %}
 
@@ -143,7 +147,12 @@
             <h4>{{ step.title }}</h4>
             <p>{{ step.detail }}</p>
             {% if step.url %}
-            <a class="step-cta" href="{{ step.url }}" rel="nofollow noopener" target="_blank">{{ step.url_label or 'Open' }} &rarr;</a>
+            <div class="step-cta-row">
+              {% if 'cancilleriadigital' in step.url and us_embassy_eguide_url is defined and us_embassy_eguide_url %}
+              <a class="step-cta step-cta-embassy" href="{{ us_embassy_eguide_url }}" rel="nofollow noopener" target="_blank">Embassy Application Instructions &rarr;</a>
+              {% endif %}
+              <a class="step-cta" href="{{ step.url }}" rel="nofollow noopener" target="_blank">{% if 'usembassy' in step.url %}Embassy Application Instructions{% else %}{{ step.url_label or 'Open the e-visa portal' }}{% endif %} &rarr;</a>
+            </div>
             {% endif %}
           </div>
         </li>
@@ -151,11 +160,20 @@
       </ol>
       {% endif %}
 
-      <div style="margin-top: 14px;">
-        <a class="apply-primary-cta" href="{{ v.visa_application_url }}" rel="nofollow noopener" target="_blank">Start your application &rarr;</a>
-        {% if v.visa_application_guide_url %}
-        <a class="apply-secondary-cta" href="{{ v.visa_application_guide_url }}" rel="nofollow noopener" target="_blank">Read the embassy guide</a>
-        {% endif %}
+      <div class="apply-cta-row">
+        <a class="apply-primary-cta" href="{{ v.visa_application_url }}" rel="nofollow noopener" target="_blank">Open the e-visa portal &rarr;</a>
+        <a class="apply-secondary-cta" href="{{ us_embassy_eguide_url }}" rel="nofollow noopener" target="_blank">Embassy Application Instructions &rarr;</a>
+      </div>
+
+      {# Cross-link to the dedicated /apply-for-venezuelan-visa pillar (or
+         the country-specific variant when one exists). Keeps users who
+         want a deeper, in-house walkthrough on-site instead of bouncing
+         to the Spanish-only portal cold. #}
+      {% set _apply_variants = {'US': '/apply-for-venezuelan-visa/us-citizens', 'CN': '/apply-for-venezuelan-visa/china'} %}
+      {% set _apply_url = _apply_variants.get(v.code, '/apply-for-venezuelan-visa') %}
+      <div style="margin-top: 14px; font-size: 13.5px; color: var(--sr-dark-text);">
+        Want the full English walkthrough — documents, fees, timeline, FAQs?
+        <a href="{{ _apply_url }}" style="font-weight: 600;">Open our Venezuela visa application guide &rarr;</a>
       </div>
     </div>
     {% endif %}
@@ -175,7 +193,8 @@
     All entries verified against the official embassy network and home-country
     foreign-affairs ministry sources. Policy can change quickly — always
     re-verify with the linked official source within 14 days of travel.
-    See related: <a href="/invest-in-venezuela">how to invest in Venezuela</a> ·
+    See related: <a href="/apply-for-venezuelan-visa">how to apply for a Venezuelan visa</a> ·
+    <a href="/invest-in-venezuela">how to invest in Venezuela</a> ·
     <a href="/sectors/tourism">Venezuela tourism sector</a>.
   </p>
 
