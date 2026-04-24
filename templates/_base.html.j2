@@ -250,14 +250,19 @@
 
 // Auto-inject a Share button into every breadcrumbs row. This means tools,
 // calendar, sanctions tracker, blog index, etc. all get a consistent share
-// affordance without per-template edits. Pages can still place additional
-// .share-btn elements anywhere they want.
+// affordance without per-template edits. Skip when the nav already contains a
+// share button, when data-no-breadcrumb-share is set (page shows Share
+// elsewhere), or when a sibling .page-share-row would duplicate the control.
 (function autoInjectBreadcrumbShare() {
   var canonicalEl = document.querySelector('link[rel="canonical"]');
   var canonical = (canonicalEl && canonicalEl.getAttribute('href')) || window.location.href;
   var title = document.title || 'Caracas Research';
   document.querySelectorAll('nav.breadcrumbs').forEach(function(crumbs) {
+    if (crumbs.hasAttribute('data-no-breadcrumb-share')) return;
     if (crumbs.querySelector('.share-btn')) return;
+    var next = crumbs.nextElementSibling;
+    if (next && next.classList && next.classList.contains('page-share-row') &&
+        next.querySelector('.share-btn')) return;
     var btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'share-btn breadcrumb-share';

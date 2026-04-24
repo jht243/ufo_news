@@ -619,7 +619,7 @@ def _apply_visa_jsonld(*, canonical: str, title: str, description: str, page: di
 
     breadcrumbs = [
         {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
-        {"@type": "ListItem", "position": 2, "name": "Invest in Venezuela", "item": f"{base}/invest-in-venezuela"},
+        {"@type": "ListItem", "position": 2, "name": "Travel to Venezuela", "item": f"{base}/travel"},
     ]
     if is_pillar:
         breadcrumbs.append({"@type": "ListItem", "position": 3, "name": page["page_label"], "item": canonical})
@@ -709,6 +709,8 @@ def _render_apply_visa(page: dict, *, canonical_path: str, title: str,
         page=page,
     )
 
+    from src.data.visa_document_landing import PLANILLA_HERO_LINE as _planilla_line
+
     template = _env.get_template("apply_for_venezuelan_visa.html.j2")
     html = template.render(
         page=page,
@@ -716,7 +718,79 @@ def _render_apply_visa(page: dict, *, canonical_path: str, title: str,
         seo=seo,
         jsonld=jsonld,
         current_year=_date.today().year,
-        us_embassy_eguide_url=US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
+        planilla_display_line=_planilla_line,
+    )
+    return Response(html, mimetype="text/html")
+
+
+def _visa_document_landing_jsonld(*, canonical: str, title: str, description: str, headline: str) -> str:
+    """BreadcrumbList + Article for planilla / declaración SEO landing pages."""
+    import json as _json
+    from datetime import datetime as _dt
+    from src.page_renderer import _base_url, _iso, settings as _s
+
+    base = _base_url()
+    graph: list[dict] = [
+        {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": 1, "name": "Home", "item": f"{base}/"},
+                {"@type": "ListItem", "position": 2, "name": "Travel to Venezuela", "item": f"{base}/travel"},
+                {"@type": "ListItem", "position": 3, "name": headline, "item": canonical},
+            ],
+        },
+        {
+            "@type": "Article",
+            "@id": f"{canonical}#article",
+            "headline": headline,
+            "description": description,
+            "url": canonical,
+            "mainEntityOfPage": canonical,
+            "author": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+            "publisher": {"@type": "Organization", "name": _s.site_name, "url": f"{base}/"},
+            "datePublished": _iso(_dt.utcnow()),
+            "dateModified": _iso(_dt.utcnow()),
+            "image": f"{base}/static/og-image.png?v=3",
+        },
+    ]
+    return _json.dumps({"@context": "https://schema.org", "@graph": graph}, ensure_ascii=False)
+
+
+def _render_visa_document_landing(page: dict) -> Response:
+    from src.page_renderer import _env, _base_url, _iso, settings as _s
+    from datetime import date as _date, datetime as _dt
+
+    base = _base_url()
+    path = page["canonical_path"]
+    canonical = f"{base}{path}"
+    title = page["title"]
+    description = page["description"]
+    seo = {
+        "title": title,
+        "description": description,
+        "keywords": page.get("keywords", ""),
+        "canonical": canonical,
+        "site_name": _s.site_name,
+        "site_url": base,
+        "locale": _s.site_locale,
+        "og_image": f"{base}/static/og-image.png?v=3",
+        "og_type": "article",
+        "section": "Travel",
+        "published_iso": _iso(_dt.utcnow()),
+        "modified_iso": _iso(_dt.utcnow()),
+    }
+    jsonld = _visa_document_landing_jsonld(
+        canonical=canonical,
+        title=title,
+        description=description,
+        headline=page["h1"],
+    )
+    template = _env.get_template("visa_document_landing.html.j2")
+    html = template.render(
+        page=page,
+        seo=seo,
+        jsonld=jsonld,
+        current_year=_date.today().year,
     )
     return Response(html, mimetype="text/html")
 
@@ -730,7 +804,7 @@ def apply_visa_pillar():
         return _render_apply_visa(
             page=get_pillar(),
             canonical_path="/apply-for-venezuelan-visa",
-            title="How to Apply for a Venezuela Visa (2026): E-Visa Process, Fees & Timeline",
+            title="How To Apply For A Venezuelan Visa (2026): E-Visa Process, Fees & Timeline",
             description=(
                 "Step-by-step guide to applying for a Venezuelan tourist (TR-V) "
                 "or business (TR-N) visa through the Cancillería Digital "
@@ -3982,6 +4056,100 @@ def travel_emergency_card():
         abort(500)
 
 
+@app.route("/apply-for-venezuelan-visa/planilla")
+@app.route("/apply-for-venezuelan-visa/planilla/")
+def visa_planilla_form():
+    """
+    Printable MPPRE-style planilla de solicitud de visa (fill in browser;
+    user prints to PDF and uploads in Cancillería Digital).
+    """
+    try:
+        from src.page_renderer import _env, _base_url
+        from src.data.visa_document_landing import PLANILLA_HERO_LINE
+
+        base = _base_url()
+        seo = {
+            "title": f"{PLANILLA_HERO_LINE} — type & print to PDF (Caracas Research)",
+            "description": (
+                f"{PLANILLA_HERO_LINE}. Type all sections, then print or Save as PDF "
+                "for upload to the MPPRE e-visa portal (Cancillería Digital)."
+            ),
+            "canonical": f"{base}/apply-for-venezuelan-visa/planilla",
+        }
+        return Response(
+            _env.get_template("visa_planilla.html.j2").render(
+                seo=seo,
+                planilla_hero_line=PLANILLA_HERO_LINE,
+            ),
+            mimetype="text/html",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("visa planilla form render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/apply-for-venezuelan-visa/declaracion-jurada")
+@app.route("/apply-for-venezuelan-visa/declaracion-jurada/")
+def visa_declaracion_jurada():
+    """
+    Sworn statement (declaración jurada) in Spanish, pre-filled body text
+    and typed cursive-style signature for PDF, for visa uploads.
+    """
+    try:
+        from src.page_renderer import _env, _base_url
+        base = _base_url()
+        seo = {
+            "title": "Declaración jurada — no criminal record (type & print to PDF)",
+            "description": (
+                "Pre-filled Spanish declaración jurada for Venezuela visa files. Add "
+                "name, country, and passport, type your signature, print to PDF, "
+                "and upload in Cancillería Digital."
+            ),
+            "canonical": f"{base}/apply-for-venezuelan-visa/declaracion-jurada",
+        }
+        return Response(
+            _env.get_template("visa_declaracion_jurada.html.j2").render(seo=seo),
+            mimetype="text/html",
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("visa declaración jurada form render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/planilla-de-solicitud-de-visa")
+@app.route("/planilla-de-solicitud-de-visa/")
+def visa_planilla_de_solicitud_landing():
+    """SEO guide for searchers who query the exact ministry form name."""
+    try:
+        from src.data.visa_document_landing import get_planilla_landing
+
+        return _render_visa_document_landing(get_planilla_landing())
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("planilla landing render failed: %s", exc)
+        abort(500)
+
+
+@app.route("/declaracion-jurada-visa-venezolana")
+@app.route("/declaracion-jurada-visa-venezolana/")
+def visa_declaracion_jurada_landing():
+    """SEO guide for searchers who query declaración jurada + Venezuelan visa."""
+    try:
+        from src.data.visa_document_landing import get_declaracion_landing
+
+        return _render_visa_document_landing(get_declaracion_landing())
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("declaración jurada landing render failed: %s", exc)
+        abort(500)
+
+
 @app.route("/sectors/<slug>")
 def sector_page(slug: str):
     """Evergreen sector landing page."""
@@ -4265,6 +4433,8 @@ def sitemap_xml():
         {"loc": f"{base}/apply-for-venezuelan-visa/us-citizens", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.8"},
         {"loc": f"{base}/apply-for-venezuelan-visa/business-visa", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.75"},
         {"loc": f"{base}/apply-for-venezuelan-visa/china", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.7"},
+        {"loc": f"{base}/planilla-de-solicitud-de-visa", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.72"},
+        {"loc": f"{base}/declaracion-jurada-visa-venezolana", "lastmod": today_iso, "changefreq": "weekly", "priority": "0.72"},
     ]
 
     dynamic_urls: list[dict] = []

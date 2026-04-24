@@ -1,4 +1,5 @@
 {% extends "_base.html.j2" %}
+{% from "_base.html.j2" import share_button %}
 
 {% block head_extra %}
 <style>
@@ -87,8 +88,6 @@
   .pillbar a { display: inline-block; padding: 6px 14px; background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--sr-blue-dark); text-decoration: none; }
   .pillbar a:hover { border-color: var(--sr-blue); color: var(--sr-blue); }
 
-  .page-share-row { display: flex; justify-content: flex-end; margin: 4px 0 -4px; }
-
   /* "Register your trip" callout — visually distinct and impossible to miss. */
   .register-callout { background: #f4f8fb; border: 1px solid #cfdce8; border-left: 5px solid var(--sr-blue); padding: 22px 24px; border-radius: 4px; margin: 28px 0 32px; }
   .register-callout .kicker { font-size: 12px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--sr-red); font-weight: 700; margin-bottom: 6px; }
@@ -125,11 +124,8 @@
     <a href="/">Home</a><span>/</span>
     <a href="/invest-in-venezuela">Invest in Venezuela</a><span>/</span>
     <span>Travel to Venezuela</span>
+    <span style="margin-left:auto;">{{ share_button(seo.canonical, seo.title) }}</span>
   </nav>
-
-  <div class="page-share-row">
-    {{ share_button(seo.canonical, seo.title) }}
-  </div>
 
   <header class="travel-hero">
     <div class="kicker">Travel hub · Updated {{ updated_label }}</div>

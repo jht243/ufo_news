@@ -21,7 +21,7 @@ Authoritative sources (verify before editing):
 
 from __future__ import annotations
 
-from src.data.visa_requirements import US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS
+from src.data.visa_document_landing import PLANILLA_HERO_LINE
 
 # Fee per Fragomen advisory (April 2026): the official Cancillería Digital
 # e-visa fee was raised to USD 180 for tourist (TR-V) and business (TR-N)
@@ -29,20 +29,27 @@ from src.data.visa_requirements import US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS
 # coverage (TravelOffPath, TravUnited) reporting the same figure.
 EVISA_FEE_USD = 180
 
+# Official MPPRE screen recording of the Cancillería Digital request flow.
+MPPRE_EVISA_REQUEST_PROCESS_VIDEO = (
+    "https://mppre.gob.ve/gestor2/archivos/cancilleria_digital/video/"
+    "1774461338_Request-Process-(2).mp4"
+)
+
 # Shared 6-step playbook used as the canonical "how to apply" sequence on
 # the pillar page and on the US-citizen / business-visa variants. The
 # China variant overrides this with its own consulate-routed sequence.
 SHARED_EVISA_STEPS: list[dict] = [
     {
-        "title": "Read the US Embassy plain-English summary",
+        "title": "Watch the instructional video",
         "detail": (
-            "The US Embassy in Caracas maintains an English-language summary "
-            "of the current Venezuelan e-visa process. Read it once before "
-            "opening the Spanish-only application portal so you know what "
-            "you're filling in."
+            "Venezuela’s Ministry of Foreign Affairs hosts a short screen "
+            "recording of the Cancillería Digital request process. Watch it "
+            "once before you register so you recognise the menus and upload "
+            "steps. The live portal stays in Spanish — keep a translator tab "
+            "open if you need it."
         ),
-        "url": US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
-        "url_label": "Embassy Application Instructions",
+        "url": MPPRE_EVISA_REQUEST_PROCESS_VIDEO,
+        "url_label": "Watch the instructional video",
     },
     {
         "title": "Register on Cancillería Digital",
@@ -114,12 +121,22 @@ SHARED_DOCUMENT_CHECKLIST: list[dict] = [
         "detail": "Hotel reservation covering your full stay, or — for business travel — an invitation letter from a Venezuelan entity registered with SENIAT.",
     },
     {
-        "label": "Proof of funds",
-        "detail": "Recent bank statement (last 3 months) showing sufficient funds for your stay. Caracas is more expensive than most travelers expect.",
+        "label": f"{PLANILLA_HERO_LINE} (MPPRE application form)",
+        "detail": (
+            "The ministry’s structured visa request form, usually attached as a PDF in the "
+            "portal. Fill all sections in our type-in sheet, then use your browser’s "
+            "Print → Save as PDF, and upload the file where the system asks."
+        ),
+        "cta": {"label": "Complete now", "href": "/apply-for-venezuelan-visa/planilla"},
     },
     {
-        "label": "Travel medical insurance",
-        "detail": "Strongly recommended. Many policies exclude Venezuela by default — confirm coverage in writing before you fly. Repatriation cover is essential.",
+        "label": "Declaración jurada (sworn statement)",
+        "detail": (
+            "A short no–criminal-record declaration in Spanish, often required with the file. "
+            "Standard text is pre-filled; add your name, country, and passport, type your "
+            "signature (renders in cursive for print), or print and sign by hand on paper."
+        ),
+        "cta": {"label": "Complete now", "href": "/apply-for-venezuelan-visa/declaracion-jurada"},
     },
 ]
 
@@ -130,23 +147,18 @@ SHARED_DOCUMENT_CHECKLIST: list[dict] = [
 PILLAR: dict = {
     "slug": "",  # pillar lives at /apply-for-venezuelan-visa (no sub-slug)
     "page_label": "Apply for a Venezuelan visa",
-    "h1": "How to Apply for a Venezuelan Visa (2026)",
+    "h1": "How To Apply For A Venezuelan Visa (2026)",
     "kicker": "Visa & entry guide · Updated for the new e-visa portal",
     "lede": (
         "Venezuela now issues tourist (TR-V) and business (TR-N) visas "
         "through an online e-visa portal — the Cancillería Digital. "
-        "This guide walks you through the full application: who needs a "
-        "visa, the documents you need, the current USD 180 fee, the "
-        "≈ 15-day approval timeline, and the common mistakes that delay "
-        "investors and travelers."
+        "This guide walks you through the full application."
     ),
+    # Hero strip: only facts that are *not* repeated above the fold in the
+    # lede, intro warnings, or later Fees / Timeline / step-by-step blocks.
     "key_facts": [
-        {"label": "Application channel", "value": "Cancillería Digital e-visa portal"},
-        {"label": "Visa fee", "value": f"USD {EVISA_FEE_USD}"},
-        {"label": "Approval timeline", "value": "≈ 15 days (range 7–30)"},
-        {"label": "Validity", "value": "Up to 1 year, multiple-entry"},
-        {"label": "Maximum stay", "value": "90 days per entry"},
-        {"label": "Visa on arrival", "value": "Not available"},
+        {"label": "Visa validity", "value": "Up to 1 year, multiple-entry"},
+        {"label": "Length of each stay", "value": "Up to 90 days per entry"},
     ],
     "intro_warnings": [
         {
@@ -177,13 +189,11 @@ PILLAR: dict = {
     "fees": [
         {"label": f"E-visa fee (TR-V tourist)", "value": f"USD {EVISA_FEE_USD}", "note": "Up from USD 60 in 2025; paid digitally inside the portal."},
         {"label": f"E-visa fee (TR-N business)", "value": f"USD {EVISA_FEE_USD}", "note": "Same headline fee as tourist; corporate invitation letter required."},
-        {"label": "Card processing", "value": "Variable", "note": "Some US cards auto-block payments to Venezuela. Pre-clear the transaction with your issuer."},
     ],
     "timeline": [
         {"label": "Recommended buffer", "value": "4–6 weeks before departure"},
         {"label": "Typical approval", "value": "≈ 15 days from submission"},
         {"label": "Real-world range", "value": "7–30 days (Fragomen / US Embassy)"},
-        {"label": "Pre-portal baseline", "value": "≈ 6 weeks (legacy in-person filings)"},
     ],
     # Default FAQ — applies on the pillar page. Variants can append.
     "faqs": [
@@ -221,6 +231,15 @@ PILLAR: dict = {
         },
     ],
     "related_links": [
+        {
+            "href": "/planilla-de-solicitud-de-visa",
+            "label": PLANILLA_HERO_LINE,
+            "description": (
+                "Short guide plus a link to the type-in sheet: print a Spanish-labelled PDF "
+                "for Cancillería Digital."
+            ),
+        },
+        {"href": "/apply-for-venezuelan-visa/declaracion-jurada", "label": "Declaración jurada (sworn statement)", "description": "Pre-filled Spanish text; add your data and a typed cursive-style signature, then print to PDF."},
         {"href": "/tools/venezuela-visa-requirements", "label": "Check visa requirements by passport country", "description": "Interactive checker covering 10 nationalities, with current US travel-advisory level."},
         {"href": "/travel", "label": "Caracas travel hub", "description": "STEP enrolment, the printable Caracas Emergency Card, embassies, hotels, and hospitals."},
         {"href": "/apply-for-venezuelan-visa/us-citizens", "label": "Venezuela visa for US citizens", "description": "US-specific application route — closed DC embassy, e-visa portal, common questions."},
@@ -247,12 +266,11 @@ US_CITIZENS: dict = {
         "the common payment and documentation snags."
     ),
     "key_facts": [
-        {"label": "Visa required?", "value": "Yes — TR-V (tourist) or TR-N (business)"},
-        {"label": "Application channel", "value": "Cancillería Digital e-visa portal"},
-        {"label": "DC embassy", "value": "Closed since 2019"},
-        {"label": "Visa fee", "value": f"USD {EVISA_FEE_USD}"},
-        {"label": "Approval timeline", "value": "≈ 15 days (range 7–30)"},
-        {"label": "Validity", "value": "Up to 1 year multiple-entry, 90 days/stay"},
+        {"label": "Visa class", "value": "TR-V (tourism) or TR-N (business), per your case"},
+        {
+            "label": "Entry pattern",
+            "value": "Up to 1 year, multiple-entry visa — 90 days per visit",
+        },
     ],
     "intro_warnings": [
         {
@@ -291,13 +309,11 @@ US_CITIZENS: dict = {
     "fees": [
         {"label": "E-visa fee (TR-V tourist)", "value": f"USD {EVISA_FEE_USD}", "note": "Raised from USD 60 in 2025. Paid digitally inside the portal."},
         {"label": "E-visa fee (TR-N business)", "value": f"USD {EVISA_FEE_USD}", "note": "Same headline fee. Requires a Venezuelan corporate invitation letter."},
-        {"label": "Card processing", "value": "Variable", "note": "Pre-clear the international transaction with your US card issuer to avoid an auto-decline."},
     ],
     "timeline": [
         {"label": "Recommended buffer", "value": "4–6 weeks before departure"},
         {"label": "Typical approval", "value": "≈ 15 days from submission"},
         {"label": "Real-world range", "value": "7–30 days (Fragomen / US Embassy)"},
-        {"label": "Pre-portal baseline", "value": "≈ 6 weeks (legacy in-person filings)"},
     ],
     "faqs": [
         {
@@ -357,12 +373,11 @@ BUSINESS_VISA: dict = {
         "time applicants."
     ),
     "key_facts": [
-        {"label": "Visa class", "value": "TR-N (business)"},
-        {"label": "Application channel", "value": "Cancillería Digital e-visa portal"},
-        {"label": "Visa fee", "value": f"USD {EVISA_FEE_USD}"},
-        {"label": "Approval timeline", "value": "≈ 15 days (range 7–30)"},
-        {"label": "Validity", "value": "Up to 1 year multiple-entry"},
-        {"label": "Maximum stay", "value": "90 days per entry"},
+        {"label": "Visa class", "value": "TR-N (Negocios) — not the tourist (TR-V) class"},
+        {
+            "label": "Entry pattern",
+            "value": "Same as TR-V: up to 1 year mult.-entry, 90 days per visit",
+        },
     ],
     "intro_warnings": [
         {
@@ -418,14 +433,15 @@ BUSINESS_VISA: dict = {
             ),
         },
         {
-            "title": "Read the US Embassy plain-English summary",
+            "title": "Watch the instructional video",
             "detail": (
-                "Even if you are not a US national, the US Embassy in "
-                "Caracas guide is the cleanest English-language explanation "
-                "of how the new e-visa portal handles business applications."
+                "The MPPRE screen recording walks through the same request "
+                "flow you will use for a TR-N filing. Watch it before you "
+                "register so you know where business documents attach in the "
+                "portal."
             ),
-            "url": US_EMBASSY_VENEZUELA_EVISA_INSTRUCTIONS,
-            "url_label": "Embassy Application Instructions",
+            "url": MPPRE_EVISA_REQUEST_PROCESS_VIDEO,
+            "url_label": "Watch the instructional video",
         },
         {
             "title": "Register on Cancillería Digital",
@@ -543,12 +559,14 @@ CHINA_CITIZENS: dict = {
         "filing."
     ),
     "key_facts": [
-        {"label": "Visa required?", "value": "Yes — L (tourist), F (business), or investor"},
-        {"label": "Primary channel", "value": "Embassy of Venezuela in Beijing (or Shanghai / Hong Kong consulates)"},
-        {"label": "Online channel", "value": "Cancillería Digital e-visa portal (most applications)"},
-        {"label": "Approval timeline", "value": "≈ 15 days online; up to 6 weeks in-person"},
-        {"label": "Validity", "value": "30–90 days, multiple-entry available"},
-        {"label": "Bilateral relations", "value": "Active — strategic energy and infrastructure partnership"},
+        {
+            "label": "In-person consular network",
+            "value": "Embassy in Beijing; consulates in Shanghai & Hong Kong (confirm which serves your province).",
+        },
+        {
+            "label": "Visa terms (varies by class)",
+            "value": "30–90 days, multiple-entry available — your mission confirms length.",
+        },
     ],
     "intro_warnings": [
         {
@@ -584,12 +602,25 @@ CHINA_CITIZENS: dict = {
             "detail": "Hotel reservation for tourists; corporate invitation letter from a SENIAT-registered Venezuelan entity for business and investor visas.",
         },
         {
-            "label": "Proof of funds",
-            "detail": "Recent bank statement (last 3 months) showing sufficient funds for the stay.",
-        },
-        {
             "label": "Visa application form",
             "detail": "Available from the Embassy of Venezuela in China website, or completed inside the Cancillería Digital portal.",
+        },
+        {
+            "label": f"{PLANILLA_HERO_LINE} (MPPRE application form)",
+            "detail": (
+                "Structured ministry form, usually attached as a PDF. Fill and "
+                "Print → Save as PDF, then upload in the "
+                "portal or email as your consulate instructs."
+            ),
+            "cta": {"label": "Complete now", "href": "/apply-for-venezuelan-visa/planilla"},
+        },
+        {
+            "label": "Declaración jurada (sworn statement)",
+            "detail": (
+                "Standard Spanish sworn statement. Pre-fill, sign (typed cursive for PDF or wet "
+                "signature after printing), and upload."
+            ),
+            "cta": {"label": "Complete now", "href": "/apply-for-venezuelan-visa/declaracion-jurada"},
         },
     ],
     "steps_intro": (

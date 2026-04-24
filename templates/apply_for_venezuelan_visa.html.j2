@@ -10,6 +10,7 @@
      is_pillar    bool — true for the pillar route
      seo, jsonld  standard SEO payload (built in server.py)
      current_year int
+     planilla_display_line  str — shared CTA / link label for the planilla guide + tool
 #}
 {% extends "_base.html.j2" %}
 
@@ -21,8 +22,8 @@
   .visa-hero .lede { font-family: var(--font-serif); font-size: 18px; color: var(--sr-dark-text); line-height: 1.55; max-width: 70ch; }
   @media (max-width: 600px) { .visa-hero h1 { font-size: 28px; } .visa-hero .lede { font-size: 16px; } }
 
-  .key-facts { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 22px 0 4px; }
-  @media (min-width: 720px) { .key-facts { grid-template-columns: 1fr 1fr 1fr; } }
+  .key-facts { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 22px 0 0; }
+  @media (min-width: 600px) { .key-facts { grid-template-columns: 1fr 1fr; } }
   .key-fact { background: var(--white); border: 1px solid var(--sr-gray-light); border-left: 3px solid var(--sr-blue); padding: 12px 14px; border-radius: 3px; }
   .key-fact .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--sr-gray-text); font-weight: 700; margin-bottom: 4px; }
   .key-fact .val { font-size: 14.5px; font-weight: 700; color: var(--sr-dark-text); line-height: 1.35; }
@@ -35,11 +36,18 @@
   .section h2 { font-family: var(--font-serif); font-size: 26px; color: var(--sr-blue-dark); margin: 0 0 12px; font-weight: 700; line-height: 1.25; }
   .section .section-intro { font-size: 16px; color: var(--sr-dark-text); margin-bottom: 18px; line-height: 1.6; max-width: 72ch; }
 
-  .doc-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr; gap: 10px; }
-  @media (min-width: 720px) { .doc-list { grid-template-columns: 1fr 1fr; } }
+  /* Two columns by default to reduce vertical scroll / whitespace; one column on narrow phones. */
+  /* Stretch rows so paired “Complete now” cards share one height; non-CTA cards stay content-sized. */
+  .doc-list { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; align-items: stretch; }
+  @media (max-width: 599px) { .doc-list { grid-template-columns: 1fr; } }
   .doc-list li { background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 3px; padding: 14px 16px; }
+  .doc-list li:not(:has(.doc-cta)) { align-self: start; }
+  .doc-list li:has(.doc-cta) { display: flex; flex-direction: column; min-height: 100%; }
+  .doc-list li:has(.doc-cta) .doc-detail { flex: 1 1 auto; min-height: 0; }
   .doc-list .doc-label { font-weight: 700; color: var(--sr-blue-dark); display: block; margin-bottom: 4px; font-size: 14.5px; }
-  .doc-list .doc-detail { font-size: 13.5px; color: var(--sr-dark-text); line-height: 1.55; }
+  .doc-list .doc-detail { display: block; font-size: 13.5px; color: var(--sr-dark-text); line-height: 1.55; }
+  .doc-list .doc-cta { display: inline-block; align-self: flex-start; margin-top: 12px; font-size: 13px; font-weight: 700; color: #fff; background: var(--sr-red); padding: 7px 14px; border-radius: 3px; text-decoration: none; }
+  .doc-list .doc-cta:hover { background: #a01d18; color: #fff; }
 
   .apply-steps { list-style: none; counter-reset: step; padding: 0; margin: 12px 0 0; }
   .apply-steps > li { display: grid; grid-template-columns: 38px 1fr; gap: 12px; padding: 14px 0; border-top: 1px dotted var(--sr-gray-light); counter-increment: step; }
@@ -51,9 +59,6 @@
   .apply-steps .step-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
   .apply-steps .step-cta { display: inline-block; font-size: 13px; font-weight: 600; color: #fff; background: var(--sr-blue); padding: 6px 14px; border-radius: 999px; text-decoration: none; }
   .apply-steps .step-cta:hover { background: var(--sr-blue-dark); }
-  .apply-steps .step-cta-embassy { background: #fff; color: var(--sr-blue); border: 1px solid var(--sr-blue); }
-  .apply-steps .step-cta-embassy:hover { background: var(--sr-blue); color: #fff; }
-
   .fees-table, .timeline-table { width: 100%; border-collapse: collapse; margin: 4px 0 0; font-size: 14.5px; }
   .fees-table th, .fees-table td, .timeline-table th, .timeline-table td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--sr-gray-light); vertical-align: top; }
   .fees-table th, .timeline-table th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--sr-gray-text); font-weight: 700; }
@@ -64,25 +69,25 @@
   .faq-item h3 { font-family: var(--font-serif); font-size: 17px; color: var(--sr-blue-dark); margin: 0 0 8px; font-weight: 700; line-height: 1.4; }
   .faq-item p { font-size: 14.5px; color: var(--sr-dark-text); margin: 0; line-height: 1.6; }
 
-  .related-grid { display: grid; grid-template-columns: 1fr; gap: 12px; margin: 4px 0 0; }
-  @media (min-width: 720px) { .related-grid { grid-template-columns: 1fr 1fr; } }
-  .related-grid a { display: block; background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 3px; padding: 14px 16px; text-decoration: none; color: inherit; transition: border-color 0.15s, transform 0.15s; }
-  .related-grid a:hover { border-color: var(--sr-blue); transform: translateY(-1px); }
-  .related-grid .rl-label { font-family: var(--font-serif); font-weight: 700; color: var(--sr-blue-dark); font-size: 16px; display: block; margin-bottom: 4px; }
-  .related-grid .rl-desc { font-size: 13.5px; color: var(--sr-gray-text); line-height: 1.55; }
+  /* Match tools index: index-grid + index-card; cap at three links; three columns on wide screens. */
+  .section .keep-going-grid.index-grid { margin: 8px 0 24px; }
+  @media (min-width: 720px) {
+    .section .keep-going-grid.index-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (min-width: 980px) {
+    .section .keep-going-grid.index-grid { grid-template-columns: 1fr 1fr 1fr; }
+  }
+
+  .mmpre-form-deck { display: grid; grid-template-columns: 1fr; gap: 10px; margin: 4px 0 0; }
+  @media (min-width: 700px) { .mmpre-form-deck { grid-template-columns: 1fr 1fr; } }
+  .mmpre-form-deck a { display: block; background: var(--white); border: 1px solid var(--sr-gray-light); border-radius: 4px; padding: 16px; text-decoration: none; color: inherit; }
+  .mmpre-form-deck a:hover { border-color: var(--sr-blue); }
+  .mmpre-form-deck .m-label { font-family: var(--font-serif); font-weight: 700; color: var(--sr-blue-dark); display: block; margin-bottom: 4px; }
+  .mmpre-form-deck .m-sub { font-size: 14px; color: var(--sr-gray-text); line-height: 1.5; }
 
   .needs-visa-box { background: var(--sr-gray-bg); border-left: 3px solid var(--sr-blue); padding: 14px 18px; margin: 4px 0 0; font-size: 15px; line-height: 1.6; }
   .needs-visa-box a { color: var(--sr-blue); font-weight: 600; }
 
-  .primary-cta-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 22px 0 4px; }
-  .primary-cta { display: inline-block; background: var(--sr-red); color: #fff; padding: 12px 22px; border-radius: 3px; text-decoration: none; font-weight: 700; font-size: 15px; }
-  .primary-cta:hover { background: #a01d18; color: #fff; }
-  .secondary-cta { display: inline-block; padding: 12px 22px; border-radius: 3px; font-weight: 600; font-size: 14.5px; color: var(--sr-blue-dark); border: 1px solid var(--sr-blue); text-decoration: none; }
-  .secondary-cta:hover { background: var(--sr-blue); color: #fff; }
-  @media (max-width: 600px) {
-    .primary-cta-row { flex-direction: column; align-items: stretch; }
-    .primary-cta, .secondary-cta { display: block; text-align: center; margin: 0; }
-  }
 </style>
 {% endblock %}
 
@@ -90,7 +95,7 @@
 <section class="container">
   <nav class="breadcrumbs" aria-label="Breadcrumb">
     <a href="/">Home</a><span>/</span>
-    <a href="/invest-in-venezuela">Invest in Venezuela</a><span>/</span>
+    <a href="/travel">Travel to Venezuela</a><span>/</span>
     {% if is_pillar %}
       <span>{{ page.page_label }}</span>
     {% else %}
@@ -114,12 +119,6 @@
       </div>
       {% endfor %}
     </div>
-
-    <div class="primary-cta-row">
-      <a class="primary-cta" href="https://cancilleriadigital.mppre.gob.ve/" target="_blank" rel="noopener">Open the e-visa portal</a>
-      <a class="secondary-cta" href="{{ us_embassy_eguide_url }}" target="_blank" rel="noopener">Embassy Application Instructions &rarr;</a>
-      <a class="secondary-cta" href="/tools/venezuela-visa-requirements">Check requirements by country</a>
-    </div>
   </div>
 </header>
 
@@ -139,22 +138,8 @@
     <div class="needs-visa-box">
       Not sure about your passport? Use the
       <a href="/tools/venezuela-visa-requirements">Venezuela visa-requirements checker</a>
-      to see whether your nationality needs a visa, the maximum stay, and the
-      current US/UK travel-advisory level.
+      to see whether you need a visa.
     </div>
-  </div>
-
-  <div class="section">
-    <h2>What you need before you start</h2>
-    <p class="section-intro">Gather these documents before you open the application portal. Missing or low-quality scans are the most common cause of approval delays.</p>
-    <ul class="doc-list">
-      {% for d in page.documents %}
-      <li>
-        <span class="doc-label">{{ d.label }}</span>
-        <span class="doc-detail">{{ d.detail }}</span>
-      </li>
-      {% endfor %}
-    </ul>
   </div>
 
   <div class="section">
@@ -169,9 +154,6 @@
           <p>{{ s.detail }}</p>
           {% if s.url %}
           <div class="step-cta-row">
-            {% if 'cancilleriadigital' in s.url and us_embassy_eguide_url is defined and us_embassy_eguide_url %}
-            <a class="step-cta step-cta-embassy" href="{{ us_embassy_eguide_url }}" target="_blank" rel="noopener">Embassy Application Instructions &rarr;</a>
-            {% endif %}
             <a class="step-cta" href="{{ s.url }}" target="_blank" rel="noopener">
               {%- if 'usembassy' in s.url -%}
               Embassy Application Instructions
@@ -184,6 +166,50 @@
       </li>
       {% endfor %}
     </ol>
+  </div>
+
+  <div class="section">
+    <h2>What you need before you start</h2>
+    <p class="section-intro">Gather these documents before you open the application portal. Missing or low-quality scans are the most common cause of approval delays.</p>
+    <ul class="doc-list">
+      {% for d in page.documents %}
+      <li>
+        <span class="doc-label">{{ d.label }}</span>
+        <span class="doc-detail">{{ d.detail }}</span>
+        {% if d.cta is defined and d.cta and d.cta.href %}
+        <a class="doc-cta" href="{{ d.cta.href }}" target="_blank" rel="noopener">{{ d.cta.label|default("Complete now") }} &rarr;</a>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Printable MPPRE forms (Planilla + Declaración)</h2>
+    <p class="section-intro">
+      These are the two documents travelers upload most often with the e-visa file.
+      Both tools use <strong>English on screen</strong> (labels and tips) and produce a
+      <strong>Spanish-labelled PDF</strong> for the portal. Use your browser’s
+      <strong>Print</strong> dialog and choose <strong>Save as PDF</strong>
+      — the same flow as the
+      <a href="/travel/emergency-card">Caracas Emergency Card</a>.
+    </p>
+    <div class="mmpre-form-deck">
+      <a href="/apply-for-venezuelan-visa/planilla">
+        <span class="m-label">{{ planilla_display_line }}</span>
+        <span class="m-sub">English labels while you type; print saves Spanish section titles and field labels. Cursive-style signature from your typed name.</span>
+      </a>
+      <a href="/apply-for-venezuelan-visa/declaracion-jurada">
+        <span class="m-label">Declaración jurada</span>
+        <span class="m-sub">English how-to box and placeholders; official declaration body stays Spanish on your PDF. Typed signature renders in cursive.</span>
+      </a>
+    </div>
+    <p class="section-intro" style="margin-top: 14px; max-width: 72ch;">
+      First time seeing these names? Read our short guides:
+      <a href="/planilla-de-solicitud-de-visa">{{ planilla_display_line }}</a>
+      ·
+      <a href="/declaracion-jurada-visa-venezolana">declaración jurada (visa venezolana)</a>.
+    </p>
   </div>
 
   <div class="section">
@@ -231,12 +257,13 @@
   {% if page.related_links %}
   <div class="section">
     <h2>Keep going</h2>
-    <div class="related-grid">
-      {% for r in page.related_links %}
-      <a href="{{ r.href }}">
-        <span class="rl-label">{{ r.label }}</span>
-        <span class="rl-desc">{{ r.description }}</span>
-      </a>
+    <div class="index-grid keep-going-grid">
+      {% for r in page.related_links[0:3] %}
+      <article class="index-card">
+        <a class="card-link" href="{{ r.href }}" aria-label="{{ r.label }}"></a>
+        <a class="title-link" href="{{ r.href }}">{{ r.label }}</a>
+        <p class="summary">{{ r.description }}</p>
+      </article>
       {% endfor %}
     </div>
   </div>

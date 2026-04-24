@@ -72,6 +72,8 @@ _STATIC_URLS_TO_PING_DAILY = (
     "/apply-for-venezuelan-visa/us-citizens",
     "/apply-for-venezuelan-visa/business-visa",
     "/apply-for-venezuelan-visa/china",
+    "/planilla-de-solicitud-de-visa",
+    "/declaracion-jurada-visa-venezolana",
 )
 
 
