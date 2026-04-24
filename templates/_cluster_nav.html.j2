@@ -71,11 +71,18 @@
         'cta': 'Open page'
       }) %}
   {% endfor %}
+  {# Cap at 3 cards in the macro; browse link only when the cluster
+     lists more than 3 siblings (this nav is capped server-side at 12,
+     but readers should not see a second row — they go to the hub). #}
+  {% set _hub_path = cluster_ctx.pillar.path if cluster_ctx.pillar else cluster_ctx.cluster.pillar.path %}
+  {% set _hub_label = 'View hub — ' ~ cluster_ctx.cluster.name %}
   {{ card_grid_section(
        heading=('More in ' ~ cluster_ctx.cluster.name) if not cluster_ctx.is_pillar else ('Hub pages — ' ~ cluster_ctx.cluster.name),
        meta=(cluster_ctx.others|length|string) ~ ' related page' ~ ('' if cluster_ctx.others|length == 1 else 's'),
        cards=_cluster_cards,
-       aria_label='Related pages in this cluster'
+       aria_label='Related pages in this cluster',
+       footer_link={'href': _hub_path, 'label': _hub_label} if cluster_ctx.others|length > 3 else None,
+       footer_mode='always'
   ) }}
   {% endif %}
 </aside>
