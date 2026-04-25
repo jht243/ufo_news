@@ -85,6 +85,20 @@
     </p>
   </header>
 
+  {# ── Custom company lookup ─────────────────────────────────────── #}
+  <div class="cr-search-panel" role="search" aria-label="Look up a specific S&P 500 company">
+    <label class="cr-search-label" for="edgar-company-q">Look up a specific S&amp;P 500 company</label>
+    <form method="get"
+          action="/tools/public-company-venezuela-exposure-check"
+          class="cr-search-row">
+      <input type="search" id="edgar-company-q" name="q"
+             placeholder="Chevron, Halliburton, CVX, SLB, HAL…"
+             autocomplete="off" required />
+      <button type="submit">Open exposure profile →</button>
+    </form>
+    <p class="cr-search-help">Type a name or ticker to open the canonical Venezuela-exposure profile with EDGAR scan results inline.</p>
+  </div>
+
   <div class="edgar-hero">
     <h2>What this does</h2>
     <p>
@@ -103,23 +117,6 @@
       place).
     </p>
   </div>
-
-  {# ── Custom company lookup ─────────────────────────────────────── #}
-  <h2 id="company-lookup">Look up a specific S&amp;P 500 company</h2>
-  <p style="font-size:14px;color:var(--sr-dark-text);">
-    Type a name (e.g. <em>Chevron</em>, <em>Halliburton</em>) or ticker
-    (<em>CVX</em>, <em>HAL</em>, <em>SLB</em>). We resolve to the
-    canonical Venezuela-exposure profile for that ticker, which already
-    includes the EDGAR full-text scan results inline.
-  </p>
-  <form method="get"
-        action="/tools/public-company-venezuela-exposure-check"
-        class="edgar-search">
-    <input type="text" name="q"
-           placeholder="Chevron, Halliburton, CVX, SLB, HAL…"
-           autocomplete="off" required />
-    <button type="submit">Open exposure profile →</button>
-  </form>
 
   {# ── Pre-canned EDGAR search presets ───────────────────────────── #}
   <h2 id="presets">Pre-canned EDGAR research queries</h2>

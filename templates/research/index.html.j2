@@ -281,6 +281,16 @@
     </div>
   </section>
 
+  <div class="cr-search-panel" role="search" aria-label="Search OFAC SDN research dossiers">
+    <label class="cr-search-label" for="dossier-search">Search dossiers</label>
+    <div class="cr-search-row">
+      <input type="search" id="dossier-search" placeholder="Search a name, raw OFAC name, program, or role…" autocomplete="off">
+    </div>
+    <p class="cr-search-help">Use this first when you know the name. Results below filter instantly across every dossier card.</p>
+  </div>
+
+  <div class="cr-empty-filter" id="dossier-empty">No dossiers match that search.</div>
+
   {# ── How a dossier differs from a sanctions profile ────────────── #}
   <section class="vs-block" aria-labelledby="vs-heading">
     <h2 id="vs-heading">Dossier vs. sanctions profile — when to use which</h2>
@@ -357,7 +367,7 @@
     </header>
     <div class="card-grid">
       {% for c in cluster.cards %}
-      <a class="dossier-card" href="{{ c.url }}">
+      <a class="dossier-card" href="{{ c.url }}" data-search="{{ (c.display_name ~ ' ' ~ c.raw_name ~ ' ' ~ c.program ~ ' ' ~ c.program_code ~ ' ' ~ (c.public_role or '') ~ ' ' ~ c.tagline)|lower }}">
         <span class="dc-status">Active SDN</span>
         <h3>{{ c.display_name }}</h3>
         <div class="dc-raw">{{ c.raw_name }}</div>
@@ -461,5 +471,28 @@
   </section>
 
 </div>
+<script>
+(function () {
+  var input = document.getElementById('dossier-search');
+  var empty = document.getElementById('dossier-empty');
+  if (!input) return;
+  var clusters = Array.prototype.slice.call(document.querySelectorAll('.cluster'));
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    var totalVisible = 0;
+    clusters.forEach(function (cluster) {
+      var visibleInCluster = 0;
+      Array.prototype.slice.call(cluster.querySelectorAll('.dossier-card[data-search]')).forEach(function (card) {
+        var show = !q || (card.getAttribute('data-search') || '').indexOf(q) !== -1;
+        card.style.display = show ? '' : 'none';
+        if (show) visibleInCluster += 1;
+      });
+      totalVisible += visibleInCluster;
+      cluster.style.display = visibleInCluster ? '' : 'none';
+    });
+    if (empty) empty.style.display = q && totalVisible === 0 ? 'block' : 'none';
+  });
+})();
+</script>
 {# JSON-LD is rendered by _base.html.j2 via the `jsonld` template var. #}
 {% endblock %}

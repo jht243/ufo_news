@@ -77,9 +77,6 @@
   .poi-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 0 0 12px; font-size: 12px; color: var(--sr-gray-text); align-items: center; }
   .poi-legend-item { display: flex; align-items: center; gap: 6px; }
 
-  .filter { display:flex; gap:8px; margin: 12px 0 20px; }
-  .filter input, .filter select { padding: 10px 14px; border: 1px solid var(--sr-gray-light); border-radius:3px; font-size: 14px; }
-  .filter input { flex:1; }
   .nbh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; }
   .nbh-card { background: var(--white); border: 1px solid var(--sr-gray-light); border-left: 4px solid var(--sr-gray-light); padding: 16px 18px; border-radius: 3px; }
   .nbh-card.s1 { border-left-color: #c0392b; }
@@ -151,15 +148,6 @@
     hospitals shown here are a curated subset, not a complete directory.
   </p>
 
-  <div class="filter">
-    <input type="text" id="nbh-q" placeholder="Search neighborhood, municipality, category…">
-    <select id="nbh-min">
-      <option value="0">Show all scores</option>
-      <option value="3">Score ≥ 3 only</option>
-      <option value="4">Score ≥ 4 only (business-suitable)</option>
-    </select>
-  </div>
-
   <div class="nbh-grid" id="nbh-grid">
     {% for n in neighborhoods %}
     <article id="nbh-{{ loop.index0 }}" class="nbh-card s{{ n.safety_score }}" data-idx="{{ loop.index0 }}" data-text="{{ (n.name + ' ' + n.municipality + ' ' + n.category)|lower }}" data-score="{{ n.safety_score }}">
@@ -199,10 +187,6 @@
           crossorigin=""></script>
   <script>
     (function() {
-      var cards = document.querySelectorAll('#nbh-grid .nbh-card');
-      var q = document.getElementById('nbh-q');
-      var min = document.getElementById('nbh-min');
-
       var data = [];
       try { data = JSON.parse(document.getElementById('nbh-data').textContent || '[]'); }
       catch (e) { data = []; }
@@ -334,28 +318,6 @@
       }
 
       var nbhLayerRef = null;
-      function apply() {
-        var qv = (q.value || '').toLowerCase().trim();
-        var minScore = parseInt(min.value || '0', 10);
-        cards.forEach(function(c) {
-          var matchQ = !qv || c.dataset.text.indexOf(qv) !== -1;
-          var matchS = parseInt(c.dataset.score, 10) >= minScore;
-          c.style.display = (matchQ && matchS) ? '' : 'none';
-        });
-        if (!nbhLayerRef) return;
-        markers.forEach(function(item) {
-          var matchQ = !qv || item.text.indexOf(qv) !== -1;
-          var matchS = item.score >= minScore;
-          if (matchQ && matchS) {
-            if (!nbhLayerRef.hasLayer(item.marker)) nbhLayerRef.addLayer(item.marker);
-          } else {
-            if (nbhLayerRef.hasLayer(item.marker)) nbhLayerRef.removeLayer(item.marker);
-          }
-        });
-      }
-      q.addEventListener('input', apply);
-      min.addEventListener('change', apply);
-
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', initMap);
       } else {

@@ -40,9 +40,18 @@
   </header>
 
   {% if calendar_events %}
+  <div class="cr-search-panel" role="search" aria-label="Search investor calendar">
+    <label class="cr-search-label" for="calendar-search">Search calendar</label>
+    <div class="cr-search-row">
+      <input type="search" id="calendar-search" placeholder="Search OFAC, license, BCV, debt, Asamblea…" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="cr-empty-filter" id="calendar-empty">No calendar items match that search.</div>
+
   <ul class="cal-list">
     {% for ev in calendar_events %}
-    <li class="cal-item {{ ev.css_class or '' }}">
+    <li class="cal-item {{ ev.css_class or '' }}" data-search="{{ ((ev.date_label or '') ~ ' ' ~ (ev.subtitle or '') ~ ' ' ~ ev.title ~ ' ' ~ (ev.note or ''))|lower }}">
       <div class="date-block">
         <div class="lbl">{{ ev.date_label or '?' }}</div>
         {% if ev.subtitle %}<div class="sub">{{ ev.subtitle }}</div>{% endif %}
@@ -78,4 +87,23 @@
   ) }}
 
 </section>
+
+<script>
+(function () {
+  var input = document.getElementById('calendar-search');
+  var empty = document.getElementById('calendar-empty');
+  if (!input) return;
+  var items = Array.prototype.slice.call(document.querySelectorAll('.cal-item[data-search]'));
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    var visible = 0;
+    items.forEach(function (item) {
+      var show = !q || (item.getAttribute('data-search') || '').indexOf(q) !== -1;
+      item.style.display = show ? '' : 'none';
+      if (show) visible += 1;
+    });
+    if (empty) empty.style.display = q && visible === 0 ? 'block' : 'none';
+  });
+})();
+</script>
 {% endblock %}

@@ -63,16 +63,20 @@
     </p>
   </header>
 
+  <div class="cr-search-panel" role="search" aria-label="Search S&P 500 Venezuela exposure register">
+    <label class="cr-search-label" for="company-filter">Search the company register</label>
+    <div class="cr-search-row">
+      <input type="search" id="company-filter" placeholder="Type a ticker or company name, e.g. CVX, Chevron, JPM…" autocomplete="off">
+    </div>
+    <p class="cr-search-help">This filters all {{ rows|length }} S&amp;P 500 exposure profiles below.</p>
+  </div>
+
   <div class="companies-summary">
     <div class="stat"><span class="num">{{ rows|length }}</span><span class="label">Companies</span></div>
     <div class="stat"><span class="num">{{ counts.direct }}</span><span class="label">Direct</span></div>
     <div class="stat"><span class="num">{{ counts.indirect }}</span><span class="label">Indirect</span></div>
     <div class="stat"><span class="num">{{ counts.historical }}</span><span class="label">Historical</span></div>
     <div class="stat"><span class="num">{{ counts.unknown }}</span><span class="label">No exposure on record</span></div>
-  </div>
-
-  <div class="companies-filter">
-    <input type="text" id="company-filter" placeholder="Filter by ticker or company name (e.g. CVX or Chevron)" autocomplete="off">
   </div>
 
   <div class="letter-jump">

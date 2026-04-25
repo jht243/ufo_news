@@ -2,9 +2,6 @@
 
 {% block head_extra %}
 <style>
-  .filter-bar { display:flex; flex-wrap:wrap; gap:8px; margin: 16px 0 24px; }
-  .filter-bar input, .filter-bar select { padding: 8px 12px; border: 1px solid var(--sr-gray-light); border-radius: 3px; font-size: 14px; font-family: var(--font-sans); }
-  .filter-bar input { flex: 1 1 240px; }
   .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin: 24px 0 32px; }
   .stat-card { background: var(--sr-gray-bg); border-left: 3px solid var(--sr-blue); padding: 14px 16px; }
   .stat-card .num { font-family: var(--font-serif); font-size: 28px; font-weight: 700; color: var(--sr-blue-dark); display:block; }
@@ -66,6 +63,21 @@
     </div>
     {% endif %}
   </header>
+
+  <div class="cr-search-panel" role="search" aria-label="Search OFAC Venezuela SDN entries">
+    <label class="cr-search-label" for="sdn-search">Search the live SDN list</label>
+    <div class="cr-search-row">
+      <input type="search" id="sdn-search" placeholder="Type a name, company, vessel, aircraft, program, cédula, IMO…" aria-label="Search SDN entries" autocomplete="off">
+      <select id="sdn-type-filter" aria-label="Filter by type">
+        <option value="">All types</option>
+        <option value="individual">Individuals</option>
+        <option value="vessel">Vessels</option>
+        <option value="aircraft">Aircraft</option>
+        <option value="entity">Entities</option>
+      </select>
+    </div>
+    <p class="cr-search-help">Start here for a fast table filter. For fuzzy matching and aliases, use the <a href="/tools/ofac-venezuela-sanctions-checker">sanctions exposure checker</a>.</p>
+  </div>
 
   <div class="stats-row">
     <div class="stat-card"><span class="num">{{ stats.total }}</span><span class="lbl">Total designations</span></div>
@@ -151,17 +163,6 @@
     <a href="/sanctions/vessels">vessels</a>, or
     <a href="/sanctions/aircraft">aircraft</a> directories — each entry has its own profile page.
   </p>
-
-  <div class="filter-bar">
-    <input type="text" id="sdn-search" placeholder="Search by name, program, or remarks…" aria-label="Search SDN entries">
-    <select id="sdn-type-filter" aria-label="Filter by type">
-      <option value="">All types</option>
-      <option value="individual">Individuals</option>
-      <option value="vessel">Vessels</option>
-      <option value="aircraft">Aircraft</option>
-      <option value="entity">Entities</option>
-    </select>
-  </div>
 
   <div style="overflow-x: auto; max-height: 75vh; border:1px solid var(--sr-gray-light);">
     <table class="sdn-table" id="sdn-table">

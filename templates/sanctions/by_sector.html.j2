@@ -45,6 +45,14 @@
       </div>
     </header>
 
+    <div class="cr-search-panel" role="search" aria-label="Search sanctioned {{ sector_label|lower }}">
+      <label class="cr-search-label" for="sector-directory-search">Search this sector list</label>
+      <div class="cr-search-row">
+        <input type="search" id="sector-directory-search" placeholder="Type a name, program, DOB, IMO, aircraft tail…" autocomplete="off">
+      </div>
+      <p class="cr-search-help">This filters the {{ profiles|length }} active {{ sector_label|lower }} below.</p>
+    </div>
+
     <div class="body">
       <div class="takeaways">
         <h3>What "{{ sector_label|lower }}" means here</h3>
@@ -67,12 +75,13 @@
       </ul>
 
       <h2>All {{ sector_label|lower }} (A–Z)</h2>
+      <div class="cr-empty-filter" id="sector-directory-empty">No {{ sector_label|lower }} match that search.</div>
       {% if grouped %}
       {% for letter, items in grouped %}
       <h3 id="{{ letter }}">{{ letter }}</h3>
       <ul class="related">
         {% for p in items %}
-        <li>
+        <li data-search="{{ (p.display_name ~ ' ' ~ p.raw_name ~ ' ' ~ (p.program or '') ~ ' ' ~ p.category_singular ~ ' ' ~ (p.parsed.dob or '') ~ ' ' ~ (p.parsed.imo or '') ~ ' ' ~ (p.parsed.aircraft_tail or ''))|lower }}">
           <a href="{{ p.url_path }}">{{ p.display_name }}</a>
           <small>— {{ p.program or 'VENEZUELA' }} ·
             {{ p.category_singular }}{% if p.parsed.dob %} · DOB {{ p.parsed.dob }}{% elif p.parsed.imo %} · IMO {{ p.parsed.imo }}{% elif p.parsed.aircraft_tail %} · Tail {{ p.parsed.aircraft_tail }}{% endif %}</small>
@@ -109,4 +118,30 @@
 
   {{ cluster_nav(cluster_ctx) }}
 </div>
+
+<script>
+(function () {
+  var input = document.getElementById('sector-directory-search');
+  var empty = document.getElementById('sector-directory-empty');
+  if (!input) return;
+  var lists = Array.prototype.slice.call(document.querySelectorAll('ul.related'));
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    var totalVisible = 0;
+    lists.forEach(function (list) {
+      var visibleInList = 0;
+      Array.prototype.slice.call(list.querySelectorAll('li[data-search]')).forEach(function (li) {
+        var show = !q || (li.getAttribute('data-search') || '').indexOf(q) !== -1;
+        li.style.display = show ? '' : 'none';
+        if (show) visibleInList += 1;
+      });
+      totalVisible += visibleInList;
+      list.style.display = visibleInList ? '' : 'none';
+      var heading = list.previousElementSibling;
+      if (heading && heading.tagName === 'H3') heading.style.display = visibleInList ? '' : 'none';
+    });
+    if (empty) empty.style.display = q && totalVisible === 0 ? 'block' : 'none';
+  });
+})();
+</script>
 {% endblock %}

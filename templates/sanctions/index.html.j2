@@ -49,6 +49,14 @@
       </div>
     </header>
 
+    <div class="cr-search-panel" role="search" aria-label="Search sanctioned {{ bucket }}">
+      <label class="cr-search-label" for="sanctions-directory-search">Search {{ bucket }} by name, program, or identifier</label>
+      <div class="cr-search-row">
+        <input type="search" id="sanctions-directory-search" placeholder="Type a name, DOB, IMO, aircraft tail, or program…" autocomplete="off">
+      </div>
+      <p class="cr-search-help">This filters the A-Z directory below. Each result opens a permanent SDN profile page.</p>
+    </div>
+
     <div class="body">
       <p>
         Browse alphabetically below, or use these one-click filters to jump to a
@@ -70,12 +78,13 @@
       </p>
 
       <h2>All {{ bucket }} (A–Z)</h2>
+      <div class="cr-empty-filter" id="sanctions-directory-empty">No {{ bucket }} match that search.</div>
       {% if grouped %}
       {% for letter, items in grouped %}
       <h3 id="{{ letter }}">{{ letter }}</h3>
       <ul class="related">
         {% for p in items %}
-        <li>
+        <li data-search="{{ (p.display_name ~ ' ' ~ p.raw_name ~ ' ' ~ p.program ~ ' ' ~ p.program_label ~ ' ' ~ (p.parsed.dob or '') ~ ' ' ~ (p.parsed.imo or '') ~ ' ' ~ (p.parsed.aircraft_tail or ''))|lower }}">
           <a href="{{ p.url_path }}">{{ p.display_name }}</a>
           <small>— {{ p.program }}{% if p.parsed.dob %} · DOB {{ p.parsed.dob }}{% elif p.parsed.imo %} · IMO {{ p.parsed.imo }}{% elif p.parsed.aircraft_tail %} · Tail {{ p.parsed.aircraft_tail }}{% endif %}</small>
         </li>
@@ -100,4 +109,30 @@
 
   {{ cluster_nav(cluster_ctx) }}
 </div>
+
+<script>
+(function () {
+  var input = document.getElementById('sanctions-directory-search');
+  var empty = document.getElementById('sanctions-directory-empty');
+  if (!input) return;
+  var lists = Array.prototype.slice.call(document.querySelectorAll('ul.related'));
+  input.addEventListener('input', function () {
+    var q = input.value.trim().toLowerCase();
+    var totalVisible = 0;
+    lists.forEach(function (list) {
+      var visibleInList = 0;
+      Array.prototype.slice.call(list.querySelectorAll('li[data-search]')).forEach(function (li) {
+        var show = !q || (li.getAttribute('data-search') || '').indexOf(q) !== -1;
+        li.style.display = show ? '' : 'none';
+        if (show) visibleInList += 1;
+      });
+      totalVisible += visibleInList;
+      list.style.display = visibleInList ? '' : 'none';
+      var heading = list.previousElementSibling;
+      if (heading && heading.tagName === 'H3') heading.style.display = visibleInList ? '' : 'none';
+    });
+    if (empty) empty.style.display = q && totalVisible === 0 ? 'block' : 'none';
+  });
+})();
+</script>
 {% endblock %}
