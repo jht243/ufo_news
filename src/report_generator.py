@@ -36,6 +36,8 @@ def generate_report(output_path: Path | None = None) -> Path:
         entries = [_entry(row) for row in rows]
         _attach_blog_links(db, entries)
         cases = list_cases()
+        if not entries:
+            entries = _seed_case_entries(cases)
         ticker_items = build_ticker(entries, cases)
         timeline_events = [e["timeline_event"] for e in entries if e.get("timeline_event")][:8]
         generated = datetime.utcnow()
@@ -101,6 +103,53 @@ def _attach_blog_links(db, entries):
     posts = {(p.source_table, p.source_id): p.slug for p in db.query(BlogPost).all()}
     for e in entries:
         e["blog_slug"] = posts.get(("external_articles", e["db_id"]))
+
+
+def _seed_case_entries(cases):
+    """Build homepage-ready records from curated case files when DB feed is empty."""
+    entries = []
+    today = date.today()
+    for idx, case in enumerate(cases, start=1):
+        grade = evidence_grade(case)
+        is_resolved = case.get("status") == "resolved"
+        evidence = case.get("evidence") or {}
+        if evidence.get("official_resolution"):
+            evidence_level = "official_analysis"
+        elif evidence.get("official_record"):
+            evidence_level = "official_record"
+        else:
+            evidence_level = "witness_report"
+        status = case.get("status") or "under_review"
+        tags = {"cases", "documents" if evidence.get("official_record") else "sightings"}
+        if case.get("agencies") and "AARO" in case.get("agencies"):
+            tags.add("official")
+        entries.append({
+            "id": f"case-{case['slug']}",
+            "db_id": -idx,
+            "headline": f"{case['title']} case file",
+            "headline_short": f"{case['title']} - {status.replace('_', ' ').title()} Case File",
+            "date_display": case.get("event_date") or "Case file",
+            "published_date": today - timedelta(days=idx),
+            "published_iso": datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc).isoformat(),
+            "source_url": f"/cases/{case['slug']}",
+            "source_display": "The UAP Index Case File",
+            "source_trust": "official" if "AARO" in case.get("agencies", []) else "research",
+            "evidence_level": evidence_level,
+            "status": status,
+            "confidence_label": grade["label"],
+            "case_names": [case["title"]],
+            "agency_tags": case.get("agencies") or [],
+            "takeaway": (
+                f"{case['official_explanation']} Public-record grade: {grade['score']}/100. "
+                "This is a seeded case file so the homepage remains useful before the daily scraper has fresh analyzed records."
+            ),
+            "tags": " ".join(sorted(tags)),
+            "relevance": grade["score"] // 10,
+            "timeline_event": {"date_label": case.get("event_date") or "Case file", "title": case["title"], "note": status.replace("_", " "), "urgency": "ongoing", "css_class": "cal-positive" if is_resolved else "cal-urgent"},
+            "slug": case["slug"],
+            "blog_slug": None,
+        })
+    return entries
 
 
 def build_ticker(entries, cases):
