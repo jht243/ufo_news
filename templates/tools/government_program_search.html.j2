@@ -1,0 +1,69 @@
+{% extends "_base.html.j2" %}
+{% block content %}
+<main class="container-wide">
+  <div class="breadcrumbs"><a href="/tools">Tools</a> / Government Program Search</div>
+  <div class="eyebrow">Program intelligence</div>
+  <h1>UAP Government Program Search</h1>
+  <p class="lede">Search known, active, proposed, disputed, and alleged U.S. government UFO/UAP programs. Confirmed programs, rumored programs, and denied allegations are separated so users can inspect the source trail without flattening everything into one story.</p>
+
+  <section class="search-panel">
+    <div class="grid" style="margin:0">
+      <div><div class="meta">Programs mapped</div><h2 style="margin:4px 0">{{ stats.total }}</h2><p>Historical Air Force projects, modern UAP offices, NASA/NARA work, and alleged program names.</p></div>
+      <div><div class="meta">Confirmed</div><h2 style="margin:4px 0">{{ stats.confirmed }}</h2><p>Officially documented historical or active government programs and offices.</p></div>
+      <div><div class="meta">Alleged / disputed</div><h2 style="margin:4px 0">{{ stats.alleged }}</h2><p>Rumored, whistleblower-alleged, or denied program names with caveats attached.</p></div>
+    </div>
+  </section>
+
+  <section class="entry">
+    <h2>What Changed in 2021?</h2>
+    <p>June 25, 2021 is the public inflection point: ODNI released its preliminary UAP assessment to Congress, summarizing UAPTF work and acknowledging that U.S. military and intelligence reporting contained unresolved UAP incidents. The shift did not prove extraterrestrial technology, but it moved UAP from fringe public debate into a formal national-security, aviation-safety, intelligence, and records-management process.</p>
+    <p>The institutional chain after that is the useful way to navigate the topic: <strong>UAPTF</strong> led into <strong>AOIMSG</strong>, which was renamed and expanded into <strong>AARO</strong>. In parallel, <strong>NASA</strong> studied how science and data quality could help, while <strong>NARA</strong> became the public records lane for UAP document transfers.</p>
+  </section>
+
+  <form class="search-panel" method="get">
+    <div class="search-row">
+      <input name="q" value="{{ filters.q }}" placeholder="Search Blue Book, AARO, AATIP, KONA BLUE, Immaculate Constellation">
+      <select name="status"><option value="">All statuses</option>{% for s in facets.statuses %}<option value="{{ s }}" {% if filters.status==s %}selected{% endif %}>{{ s|replace('_',' ') }}</option>{% endfor %}</select>
+      <select name="era"><option value="">All eras</option>{% for e in facets.eras %}<option value="{{ e }}" {% if filters.era==e %}selected{% endif %}>{{ e }}</option>{% endfor %}</select>
+      <select name="source_strength"><option value="">All source labels</option>{% for s in facets.source_strengths %}<option value="{{ s }}" {% if filters.source_strength==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      <select name="agency"><option value="">All agencies</option>{% for a in facets.agencies %}<option value="{{ a }}" {% if filters.agency==a %}selected{% endif %}>{{ a }}</option>{% endfor %}</select>
+      <select name="group"><option value="era" {% if group_key=='era' %}selected{% endif %}>Group by era</option><option value="status" {% if group_key=='status' %}selected{% endif %}>Group by status</option><option value="agency" {% if group_key=='agency' %}selected{% endif %}>Group by agency</option><option value="source_strength" {% if group_key=='source_strength' %}selected{% endif %}>Group by source label</option></select>
+      <button>Search</button>
+    </div>
+  </form>
+
+  <div class="meta">{{ programs|length }} programs shown</div>
+  {% for group in program_groups %}
+  <section class="entry">
+    <h2>{{ group.label|replace('_',' ') }}</h2>
+    <div class="grid">
+      {% for p in group["items"] %}
+      <article class="card">
+        <div class="meta">{{ p.years }} · {{ p.agency }} · {{ p.source_strength }}</div>
+        <h3>{{ p.name }}</h3>
+        {% if p.aliases %}<p><strong>Also searched as:</strong> {{ p.aliases|join(', ') }}</p>{% endif %}
+        <p><span class="pill status-{{ p.status }}">{{ p.status|replace('_',' ') }}</span><span class="pill">{{ p.program_type|replace('_',' ') }}</span></p>
+        <p>{{ p.summary }}</p>
+        <p><strong>Why it matters:</strong> {{ p.why_it_matters }}</p>
+        <p><strong>Public record:</strong> {{ p.public_record }}</p>
+        <p><strong>Caveat:</strong> {{ p.caveat }}</p>
+        <p><strong>Sources:</strong> {% for s in p.sources %}<a href="{{ s.url }}" rel="nofollow">{{ s.label }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <p>No programs match those filters.</p>
+  {% endfor %}
+
+  <section class="entry">
+    <h2>People Also Ask About Government UAP Programs</h2>
+    <div class="grid">
+      <article class="card"><h3>Which government UFO programs are officially confirmed?</h3><p>Confirmed entries include Project Sign, Project Grudge, Project Blue Book, UAPTF, AOIMSG, AARO, the NASA UAP Independent Study Team, and NARA's UAP records work. Each has an official or archival source trail.</p></article>
+      <article class="card"><h3>Is AATIP the same as AAWSAP?</h3><p>No. They are often blurred in public discussion, but the tool separates documented AAWSAP contract work from the disputed public scope of AATIP.</p></article>
+      <article class="card"><h3>Is IMMACULATE CONSTELLATION real?</h3><p>The public record is allegation plus denial: an ODNI FOIA release summarizes the allegation and quotes DoD denying any record of a SAP with that name.</p></article>
+      <article class="card"><h3>Where should I research next?</h3><p>Use <a href="/documents">UAP Documents</a> for original records, <a href="/cases">UAP Cases</a> for case files, and <a href="/tools/uap-claim-checker">Claim Checker</a> for specific claims.</p></article>
+    </div>
+  </section>
+</main>
+{% endblock %}

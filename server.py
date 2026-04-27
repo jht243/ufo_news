@@ -18,6 +18,7 @@ from src.data.uap_library import (
     group_by,
     library_stats,
 )
+from src.data.uap_programs import group_programs, program_facets, program_stats, search_programs
 from src.models import BlogPost, ExternalArticleEntry, GazetteStatus, SessionLocal, init_db
 from src.page_renderer import _base_url, _env, seo_payload
 from src.storage_remote import fetch_report_html, supabase_storage_enabled, supabase_storage_read_enabled, upload_report_html
@@ -229,10 +230,47 @@ def tools_index():
         {"url": "/tools/uap-claim-checker", "name": "UAP Claim Checker", "category": "Verification", "count": stats["claims"], "summary": "Browse claim cards by year, location, category, case, and status; each claim links back to original source documents."},
         {"url": "/tools/uap-case-resolver", "name": "UAP Case Resolver", "category": "Cases", "count": stats["cases"], "summary": "Resolve the case directory by status, region, source documents, videos, and unresolved gaps."},
         {"url": "/tools/uap-document-finder", "name": "UAP Document Finder", "category": "Documents", "count": stats["documents"], "summary": "Filter original AARO, NARA, NASA, and archive records by source, year, evidence level, agency, status, and case."},
+        {"url": "/tools/uap-government-program-search", "name": "UAP Government Program Search", "category": "Programs", "count": program_stats()["total"], "summary": "Search known, active, proposed, disputed, and alleged government UFO/UAP programs with source labels and caveats."},
         {"url": "/tools/uap-evidence-grader", "name": "UAP Evidence Grader", "category": "Methodology", "count": stats["cases"], "summary": "Compare cases using a transparent public-record score and inspect which documents support the grade."},
     ]
     seo = seo_payload("/tools", "UAP Tools - Claim Checker, Case Resolver, Document Finder", "Free tools for browsing source-backed UAP claims, cases, original documents, and public evidence grades.", "UAP tools, UFO claim checker, UAP document finder")
     return _render("tools_index.html.j2", tools=tools, stats=stats, claim_groups=group_by(SEEDED_CLAIMS, "year"), doc_groups=group_by(SEEDED_DOCUMENTS, "source_name"), seo=seo)
+
+@app.route("/tools/uap-government-program-search")
+@app.route("/tools/uap-government-program-search/")
+@app.route("/tools/government-uap-program-search")
+@app.route("/tools/government-uap-program-search/")
+@app.route("/tools/government-program-search")
+@app.route("/tools/government-program-search/")
+def tool_government_program_search():
+    filters = {
+        "q": request.args.get("q", "").strip(),
+        "status": request.args.get("status", "").strip(),
+        "agency": request.args.get("agency", "").strip(),
+        "era": request.args.get("era", "").strip(),
+        "source_strength": request.args.get("source_strength", "").strip(),
+        "group": request.args.get("group", "era").strip() or "era",
+    }
+    programs = search_programs(q=filters["q"], status=filters["status"], agency=filters["agency"], era=filters["era"], source_strength=filters["source_strength"])
+    group_key = filters["group"] if filters["group"] in {"era", "status", "agency", "source_strength"} else "era"
+    seo = seo_payload(
+        "/tools/uap-government-program-search",
+        "UAP Government Program Search - UFO Programs, AARO, Blue Book, AATIP",
+        "Search confirmed, active, proposed, disputed, and alleged U.S. government UFO and UAP programs including Project Blue Book, UAPTF, AARO, AAWSAP, AATIP, KONA BLUE, and Immaculate Constellation.",
+        "UAP government programs, UFO programs, Project Blue Book, AATIP, AAWSAP, AARO, UAPTF, Immaculate Constellation, KONA BLUE, MJ-12",
+    )
+    jsonld = _hub_jsonld(
+        "/tools/uap-government-program-search",
+        seo["title"],
+        seo["description"],
+        [
+            {"q": "What changed in 2021 for UAP programs?", "a": "The June 25, 2021 ODNI preliminary assessment publicly summarized UAPTF work and moved UAP from scattered military reporting into a formal intelligence and policy process that led to AOIMSG and AARO."},
+            {"q": "Which U.S. government UFO programs are confirmed?", "a": "Confirmed programs and offices include Project Sign, Project Grudge, Project Blue Book, UAPTF, AOIMSG, AARO, the NASA UAP Independent Study Team, and the NARA UAP Records Collection."},
+            {"q": "Are alleged programs like IMMACULATE CONSTELLATION confirmed?", "a": "No. This tool labels IMMACULATE CONSTELLATION as alleged and officially denied based on an ODNI FOIA release summarizing press allegations and DoD's denial."},
+        ],
+        [{"title": p["name"], "url": "/tools/uap-government-program-search"} for p in programs[:20]],
+    )
+    return _render("tools/government_program_search.html.j2", programs=programs, program_groups=group_programs(programs, group_key), facets=program_facets(), stats=program_stats(), filters=filters, group_key=group_key, seo=seo, jsonld=jsonld)
 
 def _claim_results(query):
     cases = search_cases(query)[:8]
@@ -405,7 +443,7 @@ def robots_txt():
 @app.route("/sitemap.xml")
 def sitemap_xml():
     base = _base_url()
-    urls = ["/", "/tools", "/tools/uap-claim-checker", "/tools/uap-case-resolver", "/tools/uap-document-finder", "/tools/uap-evidence-grader", "/cases", "/documents", "/timeline", "/sources", "/explainers", "/briefing"]
+    urls = ["/", "/tools", "/tools/uap-claim-checker", "/tools/uap-case-resolver", "/tools/uap-document-finder", "/tools/uap-government-program-search", "/tools/uap-evidence-grader", "/cases", "/documents", "/timeline", "/sources", "/explainers", "/briefing"]
     urls += [f"/cases/{c['slug']}" for c in list_cases()]
     urls += [f"/explainers/{s}" for s in EXPLAINERS]
     urls += [f"/briefing/{p.slug}" for p in _recent_briefings(100)]
