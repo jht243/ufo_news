@@ -1,1 +1,83 @@
-{% extends "_base.html.j2" %}{% block content %}<main class="container-wide"><div class="breadcrumbs"><a href="/">Home</a> / Cases</div><div class="eyebrow">{% if tool_mode %}Resolver{% else %}Case directory{% endif %}</div><h1>{% if tool_mode %}UAP Case Resolver{% else %}UAP Cases{% endif %}</h1><p class="lede">Browse cases by official status, region, documents, associated claims, and unresolved gaps.</p>{% if tool_mode %}<form class="search-panel" method="get"><div class="search-row"><input name="q" value="{{ q|default('') }}" placeholder="Search GoFast, Eglin, Tic Tac, Puerto Rico"><select name="status"><option value="">All statuses</option>{% for s in facets.statuses %}<option value="{{ s }}" {% if selected.status==s %}selected{% endif %}>{{ s|replace('_',' ') }}</option>{% endfor %}</select><select name="region"><option value="">All regions</option>{% for r in regions %}<option value="{{ r }}" {% if selected.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}</select><button>Resolve</button></div></form>{% endif %}<div class="grid">{% for c in cases %}<article class="card"><div class="meta">{{ c.status|replace('_',' ') }} · {{ c.region|default(c.location) }} · {{ grades[c.slug].score }}/100</div><h3><a href="/cases/{{ c.slug }}">{{ c.title }}</a></h3><p>{{ c.location }} · {{ c.event_date }}</p><p>{{ c.official_explanation }}</p><p><span class="pill">{{ c.claims|length }} claims</span><span class="pill">{{ c.documents|length }} documents</span><span class="pill">{{ grades[c.slug].label }}</span></p>{% if c.claims %}<p><strong>Claims:</strong> {% for claim in c.claims[:2] %}{{ claim.claim }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}{% if c.documents %}<p><strong>Original docs:</strong> {% for d in c.documents[:2] %}<a href="{{ d.url }}" rel="nofollow">{{ d.source_name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}</article>{% else %}<p>No case files match those filters.</p>{% endfor %}</div></main>{% endblock %}
+{% extends "_base.html.j2" %}
+{% block content %}
+<main class="container-wide">
+  <div class="breadcrumbs"><a href="/">Home</a> / Cases</div>
+  <div class="eyebrow">{% if tool_mode %}Resolver{% else %}{{ hub.kicker|default('Case directory') }}{% endif %}</div>
+  <h1>{% if tool_mode %}UAP Case Resolver{% else %}UAP Cases: Official UFO Case Files, AARO Reports, and Evidence{% endif %}</h1>
+  <p class="lede">{% if tool_mode %}Browse cases by official status, region, documents, associated claims, and unresolved gaps.{% else %}{{ hub.intro }}{% endif %}</p>
+
+  {% if not tool_mode %}
+  <section class="search-panel">
+    <div class="grid" style="margin:0">
+      <div><div class="meta">Case files</div><h2 style="margin:4px 0">{{ cases|length }}</h2><p>Resolved, unresolved, and under-review UAP cases with source trails.</p></div>
+      <div><div class="meta">Research path</div><h2 style="margin:4px 0">Claim → Document → Grade</h2><p>Each case connects the public claim, original source, official explanation, and evidence score.</p></div>
+      <div><div class="meta">Primary sources</div><h2 style="margin:4px 0">AARO + NARA</h2><p>Case pages prioritize official records and clearly label unresolved context.</p></div>
+    </div>
+  </section>
+
+  <h2>Popular UAP Case Searches</h2>
+  <div class="grid">
+    {% for spoke in hub.spokes %}
+    <article class="card">
+      <div class="meta">Hub spoke</div>
+      <h3><a href="{{ spoke.url }}">{{ spoke.title }}</a></h3>
+      <p>{{ spoke.summary }}</p>
+    </article>
+    {% endfor %}
+  </div>
+
+  <section class="entry">
+    <h2>How This UAP Case Directory Works</h2>
+    <p>The UAP Index treats a case as a bundle of source-backed parts: the named event, aliases, date and location, agencies involved, official status, public explanation, unresolved questions, original documents, and claims that commonly circulate online. This makes the cases hub useful for searches like <strong>UAP cases</strong>, <strong>UFO case files</strong>, <strong>AARO case resolution reports</strong>, <strong>GoFast UAP</strong>, <strong>Gimbal UFO</strong>, <strong>Tic Tac UFO</strong>, and <strong>Puerto Rico object UAP</strong>.</p>
+    <p>Resolved does not mean every record is public. It means the indexed public record contains an official explanation. Under-review and unresolved cases remain useful because the missing pieces are explicit: raw sensor data, chain of custody, witness context, flight tracks, or a final agency analysis.</p>
+  </section>
+  {% endif %}
+
+  {% if tool_mode %}
+  <form class="search-panel" method="get">
+    <div class="search-row">
+      <input name="q" value="{{ q|default('') }}" placeholder="Search GoFast, Eglin, Tic Tac, Puerto Rico">
+      <select name="status"><option value="">All statuses</option>{% for s in facets.statuses %}<option value="{{ s }}" {% if selected.status==s %}selected{% endif %}>{{ s|replace('_',' ') }}</option>{% endfor %}</select>
+      <select name="region"><option value="">All regions</option>{% for r in regions %}<option value="{{ r }}" {% if selected.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+      <button>Resolve</button>
+    </div>
+  </form>
+  {% endif %}
+
+  <h2>{% if tool_mode %}Matching Case Files{% else %}Browse UAP Case Files{% endif %}</h2>
+  <div class="grid">
+    {% for c in cases %}
+    <article class="card">
+      <div class="meta">{{ c.status|replace('_',' ') }} · {{ c.region|default(c.location) }} · {{ grades[c.slug].score }}/100</div>
+      <h3><a href="/cases/{{ c.slug }}">{{ c.title }}</a></h3>
+      <p>{{ c.location }} · {{ c.event_date }}</p>
+      <p>{{ c.official_explanation }}</p>
+      <p><span class="pill">{{ c.claims|length }} claims</span><span class="pill">{{ c.documents|length }} documents</span><span class="pill">{{ grades[c.slug].label }}</span></p>
+      {% if c.claims %}<p><strong>Claims:</strong> {% for claim in c.claims[:2] %}{{ claim.claim }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}
+      {% if c.documents %}<p><strong>Original docs:</strong> {% for d in c.documents[:2] %}<a href="{{ d.url }}" rel="nofollow">{{ d.source_name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+    </article>
+    {% else %}
+    <p>No case files match those filters.</p>
+    {% endfor %}
+  </div>
+
+  {% if not tool_mode %}
+  <section class="entry">
+    <h2>People Also Ask About UAP Cases</h2>
+    <div class="grid">
+      {% for item in hub.questions %}
+      <article class="card">
+        <h3>{{ item.q }}</h3>
+        <p>{{ item.a }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="entry">
+    <h2>Next Research Steps</h2>
+    <p><a href="/documents">Open the UAP documents hub</a> to inspect original source material, <a href="/tools/uap-claim-checker">check a specific UFO claim</a>, or use the <a href="/tools/uap-document-finder">document finder</a> to filter AARO, NARA, and NASA records by source, year, evidence level, and case.</p>
+  </section>
+  {% endif %}
+</main>
+{% endblock %}

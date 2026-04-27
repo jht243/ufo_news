@@ -1,5 +1,5 @@
 from __future__ import annotations
-import gzip, hmac, io, logging, time
+import gzip, hmac, io, json, logging, time
 from datetime import date, datetime, timezone
 from pathlib import Path
 import httpx
@@ -34,6 +34,71 @@ EXPLAINERS = {
     "what-is-nara-uap-collection": {"title": "What is the NARA UAP Collection?", "summary": "The National Archives maintains Record Group 615 for UAP records transferred by agencies under the 2024 NDAA.", "body": "NARA's UAP collection creates a public archival lane for agency records. The Index tracks NARA pages as official records and uses them as source anchors for document discovery."},
     "how-to-read-uap-claims": {"title": "How to Read UAP Claims", "summary": "Separate official records, witness reports, research claims, media summaries, and unsupported viral interpretations.", "body": "A claim is only as strong as its source chain. The UAP Index labels each item by source type, evidence level, status, and unresolved gaps so readers can navigate without treating every mention as proof."},
 }
+
+CASE_HUB = {
+    "kicker": "UAP case files hub",
+    "intro": "Use this UAP cases hub to compare official case resolutions, unresolved UFO reports, AARO case files, public videos, source-backed claims, and original documents. The page is built as a navigation layer: start with the case directory, then move into claim checking, document filtering, evidence grading, or an individual case file.",
+    "spokes": [
+        {"title": "Resolved AARO UAP cases", "url": "/tools/uap-case-resolver?status=resolved", "summary": "Case files where an official public explanation is available, including GoFast, Puerto Rico Object, Mt. Etna, Western U.S. Objects, and Southeast Asia Triangles."},
+        {"title": "UAP cases still under review", "url": "/tools/uap-case-resolver?status=under_review", "summary": "Open or partial public records such as Eglin, Gimbal, and South Asian Objects where the public evidence trail remains incomplete."},
+        {"title": "UFO claim checker", "url": "/tools/uap-claim-checker", "summary": "Check claims about speed, altitude, transmedium movement, triangle formations, atmospheric wakes, and record releases against source-linked evidence."},
+        {"title": "UAP evidence grader", "url": "/tools/uap-evidence-grader", "summary": "Compare cases by official record strength, video availability, multi-sensor context, official resolution, and source count."},
+    ],
+    "questions": [
+        {"q": "What are the most documented UAP cases?", "a": "The strongest public records in this index are the cases with official AARO material, video or sensor context, and a public resolution document. GoFast, Puerto Rico Object, Mt. Etna, Al Taqaddum, Western U.S. Objects, and Southeast Asia Triangles currently have the most direct case-document trails."},
+        {"q": "Which UAP cases are unresolved?", "a": "Unresolved or under-review entries include cases where no complete public explanation is available, where raw sensor context is limited, or where AARO has not published a final case-resolution report in the seeded record. Gimbal, Tic Tac / Nimitz, Eglin, and South Asian Objects are useful starting points."},
+        {"q": "Does a resolved UAP case mean every question is closed?", "a": "No. A resolved status means an official public explanation exists in the indexed record. It does not mean every raw sensor file, witness statement, or chain-of-custody detail is public."},
+        {"q": "How should I research a UFO case?", "a": "Start with the original document, then compare the claim being made, the official explanation, the unresolved questions, and the evidence grade. The case file links all of those pieces together."},
+    ],
+}
+
+DOCUMENT_HUB = {
+    "kicker": "UAP documents hub",
+    "intro": "Use this UAP documents hub to find original UFO and UAP source material from AARO, NARA, NASA, official index pages, case-resolution PDFs, records-management guidance, and methodology sources. The document finder is designed for source inspection first: every card links outward to the original document or public agency page.",
+    "spokes": [
+        {"title": "AARO UAP case documents", "url": "/tools/uap-document-finder?source=aaro_cases", "summary": "Official case-resolution PDFs and index pages for GoFast, Puerto Rico Object, Mt. Etna, Al Taqaddum, Eglin, and other public AARO case files."},
+        {"title": "NARA UAP records collection", "url": "/tools/uap-document-finder?source=nara_uap", "summary": "National Archives UAP collection pages, Record Group 615 references, and agency transfer guidance for federal UAP records."},
+        {"title": "Official analysis documents", "url": "/tools/uap-document-finder?evidence=official_analysis", "summary": "Documents that interpret a case or method, including AARO case-resolution PDFs and NASA UAP study material."},
+        {"title": "Documents by case", "url": "/tools/uap-document-finder?group=location", "summary": "Filter original records by case, location, year, agency, evidence level, and official status."},
+    ],
+    "questions": [
+        {"q": "Where can I find official UAP documents?", "a": "Start with AARO case-resolution reports for individual cases, NARA Record Group 615 for the federal UAP records collection, and NASA UAP study material for methodology and data-quality context."},
+        {"q": "What is the NARA UAP collection?", "a": "NARA maintains public UAP collection pages for records transferred by federal agencies under the 2024 NDAA framework. The collection is a records gateway, not a single complete case database."},
+        {"q": "Are AARO case-resolution PDFs original documents?", "a": "Yes. In this index, AARO PDFs and official AARO source pages are treated as original public records because they come from the government office publishing the case analysis."},
+        {"q": "How do I verify a UFO document claim?", "a": "Open the original document, identify the exact claim, then compare it with the case file and claim checker. The Index separates what is sourced from what remains interpretation or unresolved context."},
+    ],
+}
+
+
+def _hub_jsonld(path: str, title: str, description: str, faqs: list[dict], items: list[dict]) -> str:
+    base = _base_url()
+    graph = [
+        {
+            "@context": "https://schema.org",
+            "@type": "CollectionPage",
+            "name": title,
+            "description": description,
+            "url": f"{base}{path}",
+            "isPartOf": {"@type": "WebSite", "name": settings.site_name, "url": base},
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+                {"@type": "Question", "name": f["q"], "acceptedAnswer": {"@type": "Answer", "text": f["a"]}}
+                for f in faqs
+            ],
+        },
+        {
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            "itemListElement": [
+                {"@type": "ListItem", "position": idx, "name": item["title"], "url": f"{base}{item['url']}"}
+                for idx, item in enumerate(items, start=1)
+            ],
+        },
+    ]
+    return json.dumps(graph)
 
 @app.after_request
 def _gzip_response(response: Response) -> Response:
@@ -247,8 +312,14 @@ def tool_evidence_grader():
 @app.route("/cases/")
 def cases_index():
     cases = case_clusters()
-    seo = seo_payload("/cases", "UAP Cases - Resolved, Unresolved, and Under Review", "Browse UAP cases with aliases, agencies, official explanations, unresolved questions, original source links, and evidence grades.", "UAP cases, UFO cases, AARO case resolution")
-    return _render("cases_index.html.j2", cases=cases, grades={c["slug"]: evidence_grade(c) for c in cases}, q="", selected={}, facets=library_facets(), regions=sorted({c["region"] for c in cases}), seo=seo, tool_mode=False)
+    seo = seo_payload(
+        "/cases",
+        "UAP Cases - Official UFO Case Files, AARO Reports and Evidence",
+        "Browse source-backed UAP cases, UFO case files, AARO case-resolution reports, public videos, unresolved questions, original documents, and evidence grades.",
+        "UAP cases, UFO cases, AARO case resolution, GoFast UAP, Gimbal UFO, Tic Tac UAP, Puerto Rico object, UAP evidence",
+    )
+    jsonld = _hub_jsonld("/cases", seo["title"], seo["description"], CASE_HUB["questions"], [{"title": c["title"], "url": f"/cases/{c['slug']}"} for c in cases])
+    return _render("cases_index.html.j2", cases=cases, grades={c["slug"]: evidence_grade(c) for c in cases}, q="", selected={}, facets=library_facets(), regions=sorted({c["region"] for c in cases}), seo=seo, jsonld=jsonld, hub=CASE_HUB, tool_mode=False)
 
 @app.route("/cases/<slug>")
 @app.route("/cases/<slug>/")
@@ -264,8 +335,14 @@ def case_detail(slug):
 @app.route("/documents/")
 def documents_index():
     docs = filter_documents()
-    seo = seo_payload("/documents", "UAP Documents - AARO, NARA, NASA, Congress and FOIA", "Browse original UAP documents and indexed source records from official agencies, FOIA archives, research outlets, witness databases, and news.", "UAP documents, NARA UAP, AARO records")
-    return _render("documents.html.j2", docs=docs, doc_groups=group_by(docs, "source_name"), group_key="source_name", rows=_articles(200), seo=seo, filters={}, facets=library_facets(), tool_mode=False)
+    seo = seo_payload(
+        "/documents",
+        "UAP Documents - Original AARO, NARA, NASA and UFO Records",
+        "Find original UAP documents, UFO records, AARO case-resolution PDFs, NARA UAP collection pages, NASA UAP study material, and source-linked case records.",
+        "UAP documents, UFO documents, AARO records, NARA UAP, UAP records collection, UFO files, AARO case reports",
+    )
+    jsonld = _hub_jsonld("/documents", seo["title"], seo["description"], DOCUMENT_HUB["questions"], [{"title": d["title"], "url": "/tools/uap-document-finder"} for d in docs[:12]])
+    return _render("documents.html.j2", docs=docs, doc_groups=group_by(docs, "source_name"), group_key="source_name", rows=_articles(200), seo=seo, jsonld=jsonld, filters={}, facets=library_facets(), hub=DOCUMENT_HUB, tool_mode=False)
 
 @app.route("/timeline")
 @app.route("/timeline/")

@@ -1,1 +1,100 @@
-{% extends "_base.html.j2" %}{% block content %}<main class="container-wide"><div class="breadcrumbs"><a href="/">Home</a> / Documents</div><div class="eyebrow">Source library</div><h1>{% if tool_mode %}UAP Document Finder{% else %}UAP Documents{% endif %}</h1><p class="lede">Filter original source documents by source, year, evidence level, agency, status, and case. Scraped records appear underneath as the live corpus grows.</p><form class="search-panel" method="get"><div class="search-row"><input name="q" value="{{ filters.q|default('') }}" placeholder="Search document title, topic, agency, case"><select name="source"><option value="">All sources</option>{% for s in facets.sources %}<option value="{{ s }}" {% if filters.source==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select><select name="evidence"><option value="">All evidence</option>{% for e in facets.evidence_levels %}<option value="{{ e }}" {% if filters.evidence==e %}selected{% endif %}>{{ e|replace('_',' ') }}</option>{% endfor %}</select><select name="year"><option value="">All years</option>{% for y in facets.doc_years %}<option value="{{ y }}" {% if filters.year==y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select><select name="status"><option value="">All statuses</option>{% for s in facets.statuses %}<option value="{{ s }}" {% if filters.status==s %}selected{% endif %}>{{ s|replace('_',' ') }}</option>{% endfor %}</select><select name="case"><option value="">All cases</option>{% for slug,title in facets["cases"] %}<option value="{{ slug }}" {% if filters.case==slug %}selected{% endif %}>{{ title }}</option>{% endfor %}</select><select name="group"><option value="source_name" {% if group_key=='source_name' %}selected{% endif %}>Group by source</option><option value="year" {% if group_key=='year' %}selected{% endif %}>Group by year</option><option value="evidence_level" {% if group_key=='evidence_level' %}selected{% endif %}>Group by evidence</option><option value="status" {% if group_key=='status' %}selected{% endif %}>Group by status</option><option value="location" {% if group_key=='location' %}selected{% endif %}>Group by location</option></select><button>Filter</button></div></form><div class="meta">{{ docs|length }} original documents</div>{% for group in doc_groups %}<section class="entry"><h2>{{ group.label|replace('_',' ') }}</h2><div class="grid">{% for d in group["items"] %}<article class="card"><div class="meta">{{ d.date_label }} · {{ d.document_type }} · {{ d.evidence_level|replace('_',' ') }}</div><h3><a href="{{ d.url }}" rel="nofollow">{{ d.title }}</a></h3><p>{{ d.summary }}</p><p><span class="pill">{{ d.agency }}</span><span class="pill status-{{ d.status }}">{{ d.status|replace('_',' ') }}</span></p>{% if d.case_slugs %}<p><strong>Cases:</strong> {% for slug in d.case_slugs %}<a href="/cases/{{ slug }}">{{ slug|replace('-',' ')|title }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}<p><strong>Topics:</strong> {{ d.topics|join(', ') }}</p></article>{% endfor %}</div></section>{% else %}<p>No original documents match those filters.</p>{% endfor %}{% if rows %}<h2>Live scraped records</h2>{% for r in rows %}<article class="entry"><div class="meta">{{ r.published_date }} · {{ r.source.value }} · {{ (r.analysis_json or {}).get('evidence_level','general_news') }}</div><h3><a href="{{ r.source_url }}" rel="nofollow">{{ r.headline }}</a></h3><p>{{ (r.analysis_json or {}).get('takeaway','Indexed source record.') }}</p></article>{% endfor %}{% endif %}</main>{% endblock %}
+{% extends "_base.html.j2" %}
+{% block content %}
+<main class="container-wide">
+  <div class="breadcrumbs"><a href="/">Home</a> / Documents</div>
+  <div class="eyebrow">{% if tool_mode %}Source library{% else %}{{ hub.kicker|default('Source library') }}{% endif %}</div>
+  <h1>{% if tool_mode %}UAP Document Finder{% else %}UAP Documents: Original AARO, NARA, NASA, and UFO Records{% endif %}</h1>
+  <p class="lede">{% if tool_mode %}Filter original source documents by source, year, evidence level, agency, status, and case. Scraped records appear underneath as the live corpus grows.{% else %}{{ hub.intro }}{% endif %}</p>
+
+  {% if not tool_mode %}
+  <section class="search-panel">
+    <div class="grid" style="margin:0">
+      <div><div class="meta">Original documents</div><h2 style="margin:4px 0">{{ docs|length }}</h2><p>AARO PDFs, NARA collection pages, NASA UAP study material, and official source indexes.</p></div>
+      <div><div class="meta">Search intent</div><h2 style="margin:4px 0">Find → Verify → Compare</h2><p>Use the hub to find the original record, verify a claim, then compare the associated case file.</p></div>
+      <div><div class="meta">Source classes</div><h2 style="margin:4px 0">AARO · NARA · NASA</h2><p>Official sources are separated from research outlets, witness reports, and general news.</p></div>
+    </div>
+  </section>
+
+  <h2>Popular UAP Document Searches</h2>
+  <div class="grid">
+    {% for spoke in hub.spokes %}
+    <article class="card">
+      <div class="meta">Document spoke</div>
+      <h3><a href="{{ spoke.url }}">{{ spoke.title }}</a></h3>
+      <p>{{ spoke.summary }}</p>
+    </article>
+    {% endfor %}
+  </div>
+
+  <section class="entry">
+    <h2>How to Use This UAP Documents Hub</h2>
+    <p>This page is organized for searches like <strong>UAP documents</strong>, <strong>UFO documents</strong>, <strong>AARO records</strong>, <strong>NARA UAP records</strong>, <strong>UAP records collection</strong>, <strong>UFO files</strong>, and <strong>AARO case reports</strong>. Each document card includes the source agency, year, evidence level, status, related case files, and a direct link to the original public record.</p>
+    <p>The document hub is not a rumor feed. It is a source map. A case-resolution PDF can answer one narrow claim, while NARA collection pages explain where federal records are being organized, and NASA material is more useful for methodology and data-quality questions.</p>
+  </section>
+  {% endif %}
+
+  <form class="search-panel" method="get">
+    <div class="search-row">
+      <input name="q" value="{{ filters.q|default('') }}" placeholder="Search document title, topic, agency, case">
+      <select name="source"><option value="">All sources</option>{% for s in facets.sources %}<option value="{{ s }}" {% if filters.source==s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+      <select name="evidence"><option value="">All evidence</option>{% for e in facets.evidence_levels %}<option value="{{ e }}" {% if filters.evidence==e %}selected{% endif %}>{{ e|replace('_',' ') }}</option>{% endfor %}</select>
+      <select name="year"><option value="">All years</option>{% for y in facets.doc_years %}<option value="{{ y }}" {% if filters.year==y %}selected{% endif %}>{{ y }}</option>{% endfor %}</select>
+      <select name="status"><option value="">All statuses</option>{% for s in facets.statuses %}<option value="{{ s }}" {% if filters.status==s %}selected{% endif %}>{{ s|replace('_',' ') }}</option>{% endfor %}</select>
+      <select name="case"><option value="">All cases</option>{% for slug,title in facets["cases"] %}<option value="{{ slug }}" {% if filters.case==slug %}selected{% endif %}>{{ title }}</option>{% endfor %}</select>
+      <select name="group"><option value="source_name" {% if group_key=='source_name' %}selected{% endif %}>Group by source</option><option value="year" {% if group_key=='year' %}selected{% endif %}>Group by year</option><option value="evidence_level" {% if group_key=='evidence_level' %}selected{% endif %}>Group by evidence</option><option value="status" {% if group_key=='status' %}selected{% endif %}>Group by status</option><option value="location" {% if group_key=='location' %}selected{% endif %}>Group by location</option></select>
+      <button>Filter</button>
+    </div>
+  </form>
+
+  <div class="meta">{{ docs|length }} original documents</div>
+  {% for group in doc_groups %}
+  <section class="entry">
+    <h2>{{ group.label|replace('_',' ') }}</h2>
+    <div class="grid">
+      {% for d in group["items"] %}
+      <article class="card">
+        <div class="meta">{{ d.date_label }} · {{ d.document_type }} · {{ d.evidence_level|replace('_',' ') }}</div>
+        <h3><a href="{{ d.url }}" rel="nofollow">{{ d.title }}</a></h3>
+        <p>{{ d.summary }}</p>
+        <p><span class="pill">{{ d.agency }}</span><span class="pill status-{{ d.status }}">{{ d.status|replace('_',' ') }}</span></p>
+        {% if d.case_slugs %}<p><strong>Cases:</strong> {% for slug in d.case_slugs %}<a href="/cases/{{ slug }}">{{ slug|replace('-',' ')|title }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
+        <p><strong>Topics:</strong> {{ d.topics|join(', ') }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% else %}
+  <p>No original documents match those filters.</p>
+  {% endfor %}
+
+  {% if not tool_mode %}
+  <section class="entry">
+    <h2>People Also Ask About UAP Documents</h2>
+    <div class="grid">
+      {% for item in hub.questions %}
+      <article class="card">
+        <h3>{{ item.q }}</h3>
+        <p>{{ item.a }}</p>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="entry">
+    <h2>Next Research Steps</h2>
+    <p><a href="/cases">Browse the UAP cases hub</a> to connect documents to case files, <a href="/tools/uap-claim-checker">check a specific claim</a>, or use the <a href="/tools/uap-evidence-grader">evidence grader</a> to compare public-record strength across cases.</p>
+  </section>
+  {% endif %}
+
+  {% if rows %}
+  <h2>Live Scraped Records</h2>
+  {% for r in rows %}
+  <article class="entry">
+    <div class="meta">{{ r.published_date }} · {{ r.source.value }} · {{ (r.analysis_json or {}).get('evidence_level','general_news') }}</div>
+    <h3><a href="{{ r.source_url }}" rel="nofollow">{{ r.headline }}</a></h3>
+    <p>{{ (r.analysis_json or {}).get('takeaway','Indexed source record.') }}</p>
+  </article>
+  {% endfor %}
+  {% endif %}
+</main>
+{% endblock %}
