@@ -255,7 +255,7 @@ def tool_government_program_search():
     group_key = filters["group"] if filters["group"] in {"era", "status", "agency", "source_strength"} else "era"
     seo = seo_payload(
         "/tools/uap-government-program-search",
-        "UAP Government Program Search - UFO Programs, AARO, Blue Book, AATIP",
+        "Search Government UFO Programs - Project Blue Book, AATIP, AARO",
         "Search confirmed, active, proposed, disputed, and alleged U.S. government UFO and UAP programs including Project Blue Book, UAPTF, AARO, AAWSAP, AATIP, KONA BLUE, and Immaculate Constellation.",
         "UAP government programs, UFO programs, Project Blue Book, AATIP, AAWSAP, AARO, UAPTF, Immaculate Constellation, KONA BLUE, MJ-12",
     )
@@ -300,7 +300,7 @@ def tool_claim_checker():
     claims = filter_claims(q=q, year=selected["year"], location=selected["location"], status=selected["status"], category=selected["category"], case_slug=selected["case"])
     cases, rows = _claim_results(q) if q else ([], [])
     group_key = selected["group"] if selected["group"] in {"year", "location", "category", "status"} else "year"
-    seo = seo_payload("/tools/uap-claim-checker", "UAP Claim Checker - Source-Backed UFO and UAP Claims", "Browse UAP and UFO claims by year, location, category, status, and case with original source documents and what is actually sourced.", "UFO claim checker, UAP claim checker, AARO source checker")
+    seo = seo_payload("/tools/uap-claim-checker", "Check a UFO Story or Viral Video - Source-Backed Records", "Look up stories people share about UFO videos or incidents, then see what original sources actually support.", "check UFO story, UFO viral video, UFO source checker, UAP records")
     return _render("tools/claim_checker.html.j2", q=q, claims=claims, claim_groups=group_by(claims, group_key), group_key=group_key, facets=library_facets(), selected=selected, cases=cases, rows=rows, grades={c["slug"]: evidence_grade(c) for c in cases}, seo=seo)
 
 @app.route("/tools/uap-case-resolver")
@@ -335,15 +335,14 @@ def tool_document_finder():
     }
     docs = filter_documents(q=filters["q"], source=filters["source"], evidence=filters["evidence"], year=filters["year"], agency=filters["agency"], status=filters["status"], case_slug=filters["case"])
     scraped_rows = _articles(200)
-    group_key = filters["group"] if filters["group"] in {"source_name", "year", "evidence_level", "status", "location"} else "source_name"
-    seo = seo_payload("/tools/uap-document-finder", "UAP Document Finder - Original AARO, NARA, NASA and FOIA Sources", "Filter original UAP documents and source records by source, year, evidence type, agency, status, and case.", "UAP documents, AARO records, NARA UAP, UFO documents")
-    return _render("documents.html.j2", docs=docs, doc_groups=group_by(docs, group_key), group_key=group_key, rows=scraped_rows, seo=seo, facets=library_facets(), filters=filters, tool_mode=True)
+    seo = seo_payload("/tools/uap-document-finder", "Find Original UFO Documents - Government Archives and Reports", "Find government archive pages, official reports, study material, source documents, and public records behind UFO and UAP topics.", "UFO documents, UAP documents, government UFO archives, official UFO reports")
+    return _render("documents.html.j2", docs=docs, doc_groups=group_by(docs, "source_name"), group_key="source_name", rows=scraped_rows, seo=seo, facets=library_facets(), filters=filters, tool_mode=True)
 
 @app.route("/tools/uap-evidence-grader")
 @app.route("/tools/uap-evidence-grader/")
 def tool_evidence_grader():
     cases = case_clusters()
-    seo = seo_payload("/tools/uap-evidence-grader", "UAP Evidence Grader - Compare Public Record Strength", "Compare UAP cases using a public evidence rubric built around official records, video, multiple sensors, official resolution, and original source count.", "UAP evidence, UFO evidence grading, UAP methodology")
+    seo = seo_payload("/tools/uap-evidence-grader", "See Which UFO Cases Have the Best Records", "Compare famous UFO incidents by how much public material exists: official documents, videos, sensor details, explanations, and links to original sources.", "UFO records, UFO evidence, UAP records, UFO case documents")
     return _render("evidence_grader.html.j2", cases=cases, grades={c["slug"]: evidence_grade(c) for c in cases}, seo=seo)
 
 @app.route("/cases")

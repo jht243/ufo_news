@@ -3,8 +3,8 @@
 <main class="container-wide">
   <div class="breadcrumbs"><a href="/">Home</a> / Documents</div>
   <div class="eyebrow">{% if tool_mode %}Source library{% else %}{{ hub.kicker|default('Source library') }}{% endif %}</div>
-  <h1>{% if tool_mode %}UAP Document Finder{% else %}UAP Documents: Original AARO, NARA, NASA, and UFO Records{% endif %}</h1>
-  <p class="lede">{% if tool_mode %}Filter original source documents by source, year, evidence level, agency, status, and case. Scraped records appear underneath as the live corpus grows.{% else %}{{ hub.intro }}{% endif %}</p>
+  <h1>{% if tool_mode %}Find Original UFO Documents{% else %}UAP Documents: Original AARO, NARA, NASA, and UFO Records{% endif %}</h1>
+  <p class="lede">{% if tool_mode %}Find the actual government archive pages, official reports, study material, source documents, and public records behind the topic.{% else %}{{ hub.intro }}{% endif %}</p>
 
   {% if not tool_mode %}
   <section class="search-panel">
