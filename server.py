@@ -2,6 +2,7 @@ from __future__ import annotations
 import gzip, hmac, io, json, logging, time
 from datetime import date, datetime, timezone
 from pathlib import Path
+import re
 import httpx
 from flask import Flask, Response, abort, jsonify, request
 from src.config import settings
@@ -35,6 +36,31 @@ EXPLAINERS = {
     "what-is-nara-uap-collection": {"title": "What is the NARA UAP Collection?", "summary": "The National Archives maintains Record Group 615 for UAP records transferred by agencies under the 2024 NDAA.", "body": "NARA's UAP collection creates a public archival lane for agency records. The Index tracks NARA pages as official records and uses them as source anchors for document discovery."},
     "how-to-read-uap-claims": {"title": "How to Read UAP Claims", "summary": "Separate official records, witness reports, research claims, media summaries, and unsupported viral interpretations.", "body": "A claim is only as strong as its source chain. The UAP Index labels each item by source type, evidence level, status, and unresolved gaps so readers can navigate without treating every mention as proof."},
 }
+
+_EXTERNAL_ANCHOR_RE = re.compile(r"<a\b(?=[^>]*\bhref=[\"']https?://)([^>]*)>", re.IGNORECASE)
+_REL_ATTR_RE = re.compile(r"\brel=([\"'])(.*?)\1", re.IGNORECASE)
+
+
+def _externalize_external_links(html: str) -> str:
+    def repl(match: re.Match) -> str:
+        attrs = match.group(1)
+        if not re.search(r"\btarget\s*=", attrs, re.IGNORECASE):
+            attrs += ' target="_blank"'
+
+        rel_match = _REL_ATTR_RE.search(attrs)
+        if rel_match:
+            quote, rel_value = rel_match.groups()
+            tokens = [token for token in rel_value.split() if token]
+            for token in ("noopener", "noreferrer"):
+                if token not in tokens:
+                    tokens.append(token)
+            attrs = _REL_ATTR_RE.sub(f'rel={quote}{" ".join(tokens)}{quote}', attrs, count=1)
+        else:
+            attrs += ' rel="noopener noreferrer"'
+
+        return f"<a{attrs}>"
+
+    return _EXTERNAL_ANCHOR_RE.sub(repl, html)
 
 CASE_HUB = {
     "kicker": "UAP case files hub",
@@ -164,12 +190,26 @@ def _store_nav_cache(response: Response) -> Response:
         pass
     return response
 
+@app.after_request
+def _externalize_links(response: Response) -> Response:
+    try:
+        if response.direct_passthrough or response.status_code < 200 or response.status_code >= 300 or response.mimetype != "text/html" or "Content-Encoding" in response.headers:
+            return response
+        html = response.get_data(as_text=True)
+        updated = _externalize_external_links(html)
+        if updated != html:
+            response.set_data(updated)
+            response.headers["Content-Length"] = str(len(response.get_data()))
+    except Exception as exc:
+        logger.warning("external link rewrite skipped: %s", exc)
+    return response
+
 @app.route("/")
 def index():
     html = _get_report_html()
     if not html:
         abort(503, description="Report not yet generated. Run python run_daily.py --report-only first.")
-    return Response(html, mimetype="text/html")
+    return Response(_externalize_external_links(html), mimetype="text/html")
 
 @app.post("/admin/regen-report")
 def admin_regen_report():
