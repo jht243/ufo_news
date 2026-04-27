@@ -227,11 +227,11 @@ def _render(template, **ctx):
 def tools_index():
     stats = library_stats()
     tools = [
-        {"url": "/tools/uap-claim-checker", "name": "UAP Claim Checker", "category": "Verification", "count": stats["claims"], "summary": "Browse claim cards by year, location, category, case, and status; each claim links back to original source documents."},
-        {"url": "/tools/uap-case-resolver", "name": "UAP Case Resolver", "category": "Cases", "count": stats["cases"], "summary": "Resolve the case directory by status, region, source documents, videos, and unresolved gaps."},
-        {"url": "/tools/uap-document-finder", "name": "UAP Document Finder", "category": "Documents", "count": stats["documents"], "summary": "Filter original AARO, NARA, NASA, and archive records by source, year, evidence level, agency, status, and case."},
-        {"url": "/tools/uap-government-program-search", "name": "UAP Government Program Search", "category": "Programs", "count": program_stats()["total"], "summary": "Search known, active, proposed, disputed, and alleged government UFO/UAP programs with source labels and caveats."},
-        {"url": "/tools/uap-evidence-grader", "name": "UAP Evidence Grader", "category": "Methodology", "count": stats["cases"], "summary": "Compare cases using a transparent public-record score and inspect which documents support the grade."},
+        {"url": "/tools/uap-claim-checker", "name": "Check a UFO Story or Viral Video", "category": "Stories people share", "count": stats["claims"], "summary": "Look up things people say about UFO videos or incidents, then see what the original sources actually support."},
+        {"url": "/tools/uap-case-resolver", "name": "Browse Famous UFO Incidents", "category": "Known incidents", "count": stats["cases"], "summary": "Explore GoFast, Gimbal, Tic Tac, Puerto Rico, Eglin, and other incidents by date, location, status, source documents, and unanswered questions."},
+        {"url": "/tools/uap-document-finder", "name": "Find Original UFO Documents", "category": "Source library", "count": stats["documents"], "summary": "Find the actual AARO PDFs, NARA archive pages, NASA study material, and official source records behind the topic."},
+        {"url": "/tools/uap-government-program-search", "name": "Search Government UFO Programs", "category": "Government programs", "count": program_stats()["total"], "summary": "Understand Project Blue Book, AATIP, AARO, KONA BLUE, IMMACULATE CONSTELLATION, and which programs are confirmed, alleged, or denied."},
+        {"url": "/tools/uap-evidence-grader", "name": "Compare the Public Evidence", "category": "Evidence strength", "count": stats["cases"], "summary": "See which incidents have stronger public records: official documents, video, multiple sensors, official explanations, and source links."},
     ]
     seo = seo_payload("/tools", "UAP Tools - Claim Checker, Case Resolver, Document Finder", "Free tools for browsing source-backed UAP claims, cases, original documents, and public evidence grades.", "UAP tools, UFO claim checker, UAP document finder")
     return _render("tools_index.html.j2", tools=tools, stats=stats, claim_groups=group_by(SEEDED_CLAIMS, "year"), doc_groups=group_by(SEEDED_DOCUMENTS, "source_name"), seo=seo)
