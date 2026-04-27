@@ -2,9 +2,9 @@
 {% block content %}
 <main class="container-wide">
   <div class="breadcrumbs"><a href="/">Home</a> / Cases</div>
-  <div class="eyebrow">{% if tool_mode %}Resolver{% else %}{{ hub.kicker|default('Case directory') }}{% endif %}</div>
-  <h1>{% if tool_mode %}UAP Case Resolver{% else %}UAP Cases: Official UFO Case Files, AARO Reports, and Evidence{% endif %}</h1>
-  <p class="lede">{% if tool_mode %}Browse cases by official status, region, documents, associated claims, and unresolved gaps.{% else %}{{ hub.intro }}{% endif %}</p>
+  <div class="eyebrow">{% if tool_mode %}Famous incident browser{% else %}{{ hub.kicker|default('Case directory') }}{% endif %}</div>
+  <h1>{% if tool_mode %}Browse Famous UFO Incidents{% else %}UAP Cases: Official UFO Case Files, AARO Reports, and Evidence{% endif %}</h1>
+  <p class="lede">{% if tool_mode %}Browse well-known incidents by date, location, official status, source documents, and unanswered questions.{% else %}{{ hub.intro }}{% endif %}</p>
 
   {% if not tool_mode %}
   <section class="search-panel">
@@ -34,26 +34,28 @@
   {% endif %}
 
   {% if tool_mode %}
+  <section class="search-panel">
+    <p style="margin:0"><strong>This is a curated famous-incident browser.</strong> It is not the full public sighting universe yet. Public reporting archives contain many more reports; this page only shows incidents that currently have structured source notes, official documents, or named case files in this local database.</p>
+  </section>
   <form class="search-panel" method="get">
     <div class="search-row">
       <input name="q" value="{{ q|default('') }}" placeholder="Search GoFast, Eglin, Tic Tac, Puerto Rico">
       <select name="status"><option value="">All statuses</option>{% for s in facets.statuses %}<option value="{{ s }}" {% if selected.status==s %}selected{% endif %}>{{ s|replace('_',' ') }}</option>{% endfor %}</select>
       <select name="region"><option value="">All regions</option>{% for r in regions %}<option value="{{ r }}" {% if selected.region==r %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
-      <button>Resolve</button>
+      <button>Search</button>
     </div>
   </form>
   {% endif %}
 
-  <h2>{% if tool_mode %}Matching Case Files{% else %}Browse UAP Case Files{% endif %}</h2>
-  <div class="grid">
+  <h2>{% if tool_mode %}Matching Famous Incidents{% else %}Browse UAP Case Files{% endif %}</h2>
+  <div>
     {% for c in cases %}
-    <article class="card">
-      <div class="meta">{{ c.status|replace('_',' ') }} · {{ c.region|default(c.location) }} · {{ grades[c.slug].score }}/100</div>
+    <article class="card" style="margin:0 0 16px">
       <h3><a href="/cases/{{ c.slug }}">{{ c.title }}</a></h3>
-      <p>{{ c.location }} · {{ c.event_date }}</p>
+      <p class="meta">{{ c.event_date }} · {{ c.location }} · {{ c.region|default(c.location) }}</p>
+      <p><span class="pill status-{{ c.status }}">{{ c.status|replace('_',' ') }}</span><span class="pill">{{ grades[c.slug].label }}</span><span class="pill">{{ grades[c.slug].score }}/100 public-record score</span><span class="pill">{{ c.documents|length }} source documents</span></p>
       <p>{{ c.official_explanation }}</p>
-      <p><span class="pill">{{ c.claims|length }} claims</span><span class="pill">{{ c.documents|length }} documents</span><span class="pill">{{ grades[c.slug].label }}</span></p>
-      {% if c.claims %}<p><strong>Claims:</strong> {% for claim in c.claims[:2] %}{{ claim.claim }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}
+      {% if c.claims %}<p><strong>Common story people ask about:</strong> {% for claim in c.claims[:2] %}{{ claim.claim }}{% if not loop.last %}; {% endif %}{% endfor %}</p>{% endif %}
       {% if c.documents %}<p><strong>Original docs:</strong> {% for d in c.documents[:2] %}<a href="{{ d.url }}" rel="nofollow">{{ d.source_name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>{% endif %}
     </article>
     {% else %}

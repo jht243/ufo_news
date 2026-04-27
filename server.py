@@ -317,7 +317,7 @@ def tool_case_resolver():
         cases = [c for c in cases if c["status"] == status]
     if region:
         cases = [c for c in cases if c["region"] == region]
-    seo = seo_payload("/tools/uap-case-resolver", "UAP Case Resolver - Official Status, Claims and Source Links", "Search UAP cases by name, status, region, source documents, official explanation, and unresolved questions.", "UAP cases, UFO case resolver, GoFast, Gimbal, Tic Tac")
+    seo = seo_payload("/tools/uap-case-resolver", "Browse Famous UFO Incidents - Dates, Locations and Source Records", "Search famous UFO and UAP incidents by name, status, region, source documents, official explanation, and unanswered questions.", "famous UFO incidents, UAP cases, UFO case files, GoFast, Gimbal, Tic Tac")
     return _render("cases_index.html.j2", cases=cases, grades={c["slug"]: evidence_grade(c) for c in cases}, q=q, selected={"status": status, "region": region}, facets=library_facets(), regions=sorted({c["region"] for c in case_clusters()}), seo=seo, tool_mode=True)
 
 @app.route("/tools/uap-document-finder")
